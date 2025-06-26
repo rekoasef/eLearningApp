@@ -1,17 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Añadimos la configuración de Webpack para que ignore los módulos opcionales.
-  webpack: (config) => {
-    config.externals.push({
-      'bufferutil': 'bufferutil',
-      'utf-8-validate': 'utf-8-validate',
-    });
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Estas librerías de Supabase a veces causan problemas en el entorno de servidor.
+      // Las excluimos del paquete del servidor para evitar los warnings.
+      config.externals.push('encoding');
+      config.externals.push('bufferutil');
+      config.externals.push('utf-8-validate');
+    }
     return config;
-  },
-  // NUEVO: Añadimos esta regla experimental para que Next.js maneje
-  // correctamente la librería 'ws' en el entorno del servidor.
-  experimental: {
-    serverComponentsExternalPackages: ['ws'],
   },
 };
 

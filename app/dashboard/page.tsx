@@ -3,17 +3,26 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-// CORRECCIÓN: Usando el alias de ruta estándar de Next.js.
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
-import { LogOut, BookOpen, Wrench, BarChartHorizontal } from 'lucide-react';
+import { LogOut, BookOpen, Wrench, BarChartHorizontal, Award } from 'lucide-react'; // Importamos el ícono de premio
 import Link from 'next/link';
 
+// --- Tipos ---
 type Course = {
   id: string; 
   title: string;
   description: string | null;
+};
+
+// NUEVO: Tipo para los certificados, incluyendo el título del curso anidado
+type Certificate = {
+  id: string;
+  pdf_url: string;
+  courses: {
+    title: string;
+  } | null;
 };
 
 const courseIcons: { [key: string]: React.ReactNode } = {
@@ -29,20 +38,42 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [courses, setCourses] = useState<Course[]>([]);
+  // NUEVO: Estado para guardar los certificados
+  const [certificates, setCertificates] = useState<Certificate[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) { router.push('/login'); return; }
       setUser(user);
 
+      // Fetch de cursos (sin cambios)
       const { data: coursesData, error: coursesError } = await supabase
         .from('courses')
         .select('id, title, description')
         .eq('is_published', true);
 
-      if (coursesError) { console.error('Error:', coursesError); } 
+      if (coursesError) { console.error('Error fetching courses:', coursesError); } 
       else if (coursesData) { setCourses(coursesData); }
+
+      // NUEVO: Fetch de certificados del usuario
+      // Hacemos un "join" para traernos el título del curso junto con el certificado
+      const { data: certificatesData, error: certificatesError } = await supabase
+        .from('certificates')
+        .select(`
+          id,
+          pdf_url,
+          courses ( title )
+        `)
+        .eq('user_id', user.id);
+      
+      if (certificatesError) {
+        console.error('Error fetching certificates:', certificatesError);
+      } else if (certificatesData) {
+        setCertificates(certificatesData);
+      }
+
       setLoading(false);
     };
     fetchData();
@@ -82,7 +113,40 @@ export default function DashboardPage() {
             <h2 className="text-4xl font-bold text-white mb-2">¡Hola, {user?.email?.split('@')[0]}!</h2>
             <p className="text-lg text-gray-400">¿Qué aprenderemos hoy?</p>
           </div>
-          <div>
+
+          {/* --- NUEVA SECCIÓN DE CERTIFICADOS --- */}
+          {certificates.length > 0 && (
+            <div className="mb-12">
+              <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+                <Award className="text-amber-400" />
+                Mis Certificados
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {certificates.map((cert) => (
+                  <a
+                    key={cert.id}
+                    href={cert.pdf_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                    className="group bg-[#151515] rounded-xl p-6 transition-all ease-in-out hover:bg-amber-500/10 hover:scale-[1.02] cursor-pointer border border-transparent hover:border-amber-500/30 flex flex-col"
+                  >
+                    <div className="w-14 h-14 bg-amber-800/50 rounded-lg flex items-center justify-center mb-5 group-hover:bg-amber-500/20 transition-colors">
+                        <Award size={28} className="text-amber-400" />
+                    </div>
+                    <h4 className="text-lg font-bold text-white mb-2">{cert.courses?.title}</h4>
+                    <p className="text-gray-400 text-sm mb-4 flex-grow">Certificado de finalización</p>
+                    <span className="text-amber-400 font-semibold text-sm self-start mt-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                      Descargar PDF →
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sección de Cursos Disponibles */}
+          <div className={certificates.length > 0 ? "border-t border-gray-800 pt-12" : ""}>
             <h3 className="text-xl font-semibold text-white mb-6">Cursos Disponibles</h3>
             {courses.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
