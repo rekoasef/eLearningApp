@@ -3,22 +3,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-// CORRECCIÓN: Se utiliza una ruta relativa para forzar la correcta localización del archivo.
 import { createClient } from '../../../../lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Save } from 'lucide-react';
+import { Save } from 'lucide-react';
 
 type Sector = {
   id: string;
   name: string;
 };
 
-// NUEVO: Estructura para el perfil del usuario administrador
 type AdminProfile = {
   role_id: number;
   sector_id: string | null;
-  sectors: { name: string } | null; // El sector puede ser un objeto anidado
+  sectors: { name: string } | null;
 };
 
 export default function NewCoursePage() {
@@ -28,8 +26,10 @@ export default function NewCoursePage() {
   // Estados del formulario
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [sectorId, setSectorId] = useState(''); // Solo para superadmin
+  const [sectorId, setSectorId] = useState('');
   const [isPublished, setIsPublished] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   
   // Estados de la página
   const [allSectors, setAllSectors] = useState<Sector[]>([]);
@@ -37,13 +37,11 @@ export default function NewCoursePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar perfil del usuario y sectores (si es superadmin)
   useEffect(() => {
     const fetchInitialData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
-      // Obtenemos el perfil del usuario para saber su rol y sector
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select(`role_id, sector_id, sectors (name)`)
@@ -57,7 +55,6 @@ export default function NewCoursePage() {
       }
       setUserProfile(profile as AdminProfile);
 
-      // Si es Superadmin (rol 1), cargamos todos los sectores para el dropdown
       if (profile.role_id === 1) {
         const { data: sectorsData, error: sectorsError } = await supabase.from('sectors').select('id, name');
         if (sectorsError) {
@@ -83,7 +80,6 @@ export default function NewCoursePage() {
       return;
     }
 
-    // Lógica para determinar el sector_id a usar
     const finalSectorId = userProfile.role_id === 1 ? sectorId : userProfile.sector_id;
 
     if (!title || !finalSectorId) {
@@ -98,11 +94,13 @@ export default function NewCoursePage() {
       sector_id: finalSectorId,
       is_published: isPublished,
       creator_id: user.id,
+      start_date: startDate || null,
+      end_date: endDate || null,
     });
 
     if (insertError) {
       console.error("Error al guardar el curso:", insertError);
-      setError("No se pudo guardar el curso.");
+      setError("No se pudo guardar el curso. " + insertError.message);
       setLoading(false);
     } else {
       router.push('/admin/cursos');
@@ -111,25 +109,20 @@ export default function NewCoursePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0D0D0D] text-white flex items-center justify-center">
+      <div className="p-8 text-white flex items-center justify-center">
         <p>Cargando formulario...</p>
       </div>
     );
   }
   
   return (
-    <div className="min-h-screen bg-[#0D0D0D] text-gray-200 p-8">
+    <div className="text-gray-200 p-8">
       <div className="max-w-4xl mx-auto">
-        <header className="mb-8">
-          <Link href="/admin/cursos" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors w-fit">
-            <ArrowLeft size={18} />
-            Volver a la lista de cursos
-          </Link>
+        <header className="mb-4">
+            <h1 className="text-3xl font-bold text-white">Crear Nuevo Curso</h1>
         </header>
 
         <form onSubmit={handleSaveCourse} className="bg-[#151515] rounded-xl border border-gray-800 p-8 space-y-6">
-          <h1 className="text-3xl font-bold text-white">Crear Nuevo Curso</h1>
-          
           <div>
             <label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-2">Título del Curso</label>
             <input
@@ -148,9 +141,7 @@ export default function NewCoursePage() {
             />
           </div>
 
-          {/* --- CAMBIO DE LÓGICA: Selector de Sector Condicional --- */}
           {userProfile?.role_id === 1 ? (
-            // Vista para Superadmin: puede elegir el sector
             <div>
               <label htmlFor="sector" className="block text-sm font-medium text-gray-300 mb-2">Sector</label>
               <select
@@ -165,7 +156,6 @@ export default function NewCoursePage() {
               </select>
             </div>
           ) : (
-            // Vista para Admin de Sector: el sector es fijo y no se puede cambiar
             <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Sector</label>
                 <div className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-700 rounded-md text-gray-400">
@@ -173,6 +163,23 @@ export default function NewCoursePage() {
                 </div>
             </div>
           )}
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="startDate" className="block text-sm font-medium text-gray-300 mb-2">Fecha de Inicio (Opcional)</label>
+              <input
+                id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md focus:ring-2 focus:ring-[#FF4500] text-gray-300"
+              />
+            </div>
+             <div>
+              <label htmlFor="endDate" className="block text-sm font-medium text-gray-300 mb-2">Fecha de Fin (Opcional)</label>
+              <input
+                id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md focus:ring-2 focus:ring-[#FF4500] text-gray-300"
+              />
+            </div>
+          </div>
 
           <div className="flex items-center gap-4">
              <label htmlFor="isPublished" className="block text-sm font-medium text-gray-300">¿Publicar ahora?</label>
@@ -187,7 +194,7 @@ export default function NewCoursePage() {
           
           {error && <p className="text-red-400 text-sm">{error}</p>}
           
-          <div className="flex justify-end pt-4">
+          <div className="flex justify-end pt-4 border-t border-gray-800 mt-2">
              <button
               type="submit"
               disabled={loading}

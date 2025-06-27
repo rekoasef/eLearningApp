@@ -4,72 +4,87 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
+import { useRouter, notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, CheckSquare, FileText, PlayCircle } from 'lucide-react';
+import { ArrowLeft, CheckSquare } from 'lucide-react';
 
 // --- Tipos ---
-type LessonDetails = {
-  id: string;
-  title: string;
-  contents: Content[];
-  quiz: Quiz | null;
-};
+type LessonDetails = { id: string; title: string; contents: Content[]; quiz: Quiz | null; };
 type Content = { id: string; content_type: 'video' | 'pdf'; title: string; url: string; };
 type Quiz = { id: string; };
+type CourseAvailability = 'ACTIVE' | 'UPCOMING' | 'FINISHED';
 
-// --- NUEVA FUNCIÓN ---
-// Esta función convierte una URL de YouTube a una URL 'embed' que funciona en iframes.
+// --- Helpers ---
 const getEmbedUrl = (url: string) => {
   try {
     const urlObj = new URL(url);
-    if (urlObj.hostname === 'www.youtube.com' || urlObj.hostname === 'youtube.com') {
-      const videoId = urlObj.searchParams.get('v');
-      return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
-    }
-    if (urlObj.hostname === 'youtu.be') {
-      const videoId = urlObj.pathname.slice(1);
+    if (urlObj.hostname === 'www.youtube.com' || urlObj.hostname === 'youtu.be') {
+      const videoId = urlObj.hostname === 'youtu.be' ? urlObj.pathname.slice(1) : urlObj.searchParams.get('v');
       return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
     }
   } catch (error) {
-    // Si no es una URL válida, la devolvemos como está.
     return url;
   }
   return url;
 };
 
+const getCourseAvailability = (startDate: string | null, endDate: string | null): CourseAvailability => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); 
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate) : null;
+    if (end && now > end) return 'FINISHED';
+    if (start && now < start) return 'UPCOMING';
+    return 'ACTIVE';
+};
+
 // --- Componente Principal ---
-export default function LessonPage({ params }: { params: { courseId: string, lessonId: string } }) {
+export default function LessonPage({ params }: { params: { courseId:string, lessonId: string } }) {
   const router = useRouter();
   const supabase = createClient();
   const { courseId, lessonId } = params;
 
   const [lessonDetails, setLessonDetails] = useState<LessonDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isCourseFinished, setIsCourseFinished] = useState(false);
 
   const fetchLessonData = useCallback(async () => {
     setLoading(true);
-    const { data: lesson, error: lessonError } = await supabase.from('lessons').select('id, title').eq('id', lessonId).single();
-    if (lessonError) { setLoading(false); return; }
+    
+    // Hacemos las peticiones en paralelo para mejorar el rendimiento
+    const [lessonRes, contentsRes, quizRes, courseRes] = await Promise.all([
+        supabase.from('lessons').select('id, title').eq('id', lessonId).single(),
+        supabase.from('contents').select('*').eq('lesson_id', lessonId),
+        supabase.from('quizzes').select('id').eq('lesson_id', lessonId).maybeSingle(),
+        supabase.from('courses').select('start_date, end_date').eq('id', courseId).single()
+    ]);
 
-    const { data: contents, error: contentsError } = await supabase.from('contents').select('*').eq('lesson_id', lessonId);
-    const { data: quiz, error: quizError } = await supabase.from('quizzes').select('id').eq('lesson_id', lessonId).maybeSingle();
+    if (lessonRes.error || !lessonRes.data) {
+        setLoading(false);
+        return notFound();
+    }
+    
+    if(courseRes.data) {
+        setIsCourseFinished(getCourseAvailability(courseRes.data.start_date, courseRes.data.end_date) === 'FINISHED');
+    }
 
-    setLessonDetails({ ...lesson, contents: contents || [], quiz: quiz || null });
+    setLessonDetails({ 
+        ...lessonRes.data, 
+        contents: contentsRes.data || [], 
+        quiz: quizRes.data || null 
+    });
+
     setLoading(false);
-  }, [lessonId, supabase]);
+  }, [lessonId, courseId, supabase]);
 
-  useEffect(() => {
-    fetchLessonData();
-  }, [fetchLessonData]);
+  useEffect(() => { fetchLessonData(); }, [fetchLessonData]);
 
-
+  // --- Vistas de Carga y Error ---
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center text-white">
-        {/* SVG de carga */}
-        <svg className="animate-spin h-8 w-8 text-[#FF4500]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-      </div>
+        <div className="min-h-screen bg-black flex items-center justify-center text-white">
+            <svg className="animate-spin h-8 w-8 text-[#FF4500]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        </div>
     );
   }
   
@@ -82,8 +97,8 @@ export default function LessonPage({ params }: { params: { courseId: string, les
     );
   }
   
+  // --- Renderizado Principal (Ahora seguro) ---
   const mainContent = lessonDetails.contents[0];
-  // Usamos la nueva función para obtener la URL correcta
   const contentUrl = mainContent ? getEmbedUrl(mainContent.url) : '';
 
   return (
@@ -107,13 +122,19 @@ export default function LessonPage({ params }: { params: { courseId: string, les
               )}
             </div>
             {lessonDetails.quiz ? (
-                 <Link href={`/cursos/${courseId}/quiz/${lessonDetails.quiz.id}`}
-                    className="block text-center w-full bg-[#FF4500] text-white font-bold py-3 rounded-lg hover:bg-orange-600 transition-all">
-                    <div className="flex items-center justify-center gap-3"><CheckSquare size={20} />Realizar Quiz para Continuar</div>
+                 <Link 
+                    href={!isCourseFinished ? `/cursos/${courseId}/quiz/${lessonDetails.quiz.id}` : '#'}
+                    className={`block text-center w-full font-bold py-3 rounded-lg transition-all ${ isCourseFinished ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-[#FF4500] text-white hover:bg-orange-600' }`}
+                    aria-disabled={isCourseFinished}
+                    onClick={(e) => isCourseFinished && e.preventDefault()}
+                  >
+                    <div className="flex items-center justify-center gap-3">
+                        <CheckSquare size={20} />
+                        {isCourseFinished ? 'Quiz Cerrado' : 'Realizar Quiz para Continuar'}
+                    </div>
                 </Link>
             ) : (
-                <button
-                    className="w-full flex items-center justify-center gap-3 bg-gray-600 text-white font-bold py-3 rounded-lg hover:bg-gray-500 transition-all">
+                <button className="w-full flex items-center justify-center gap-3 bg-gray-600 text-white font-bold py-3 rounded-lg hover:bg-gray-500 transition-all">
                     Marcar como Visto y Continuar (Sin Quiz)
                 </button>
             )}
