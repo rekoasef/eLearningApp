@@ -6,22 +6,33 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, BookCopy, Award, Shield, LogOut, Users } from 'lucide-react';
+import { LayoutDashboard, BookCopy, Award, Shield, LogOut, Users, UserPlus } from 'lucide-react';
 
 // --- Tipos ---
-type NavLink = { name: string; href: string; icon: React.ElementType; exact?: boolean; };
-type Profile = { role_id: number; full_name: string | null; sectors: { name: string | null } | null; };
+type NavLink = {
+  name: string;
+  href: string;
+  icon: React.ElementType;
+  exact?: boolean;
+};
+
+type Profile = {
+  role_id: number;
+  full_name: string | null;
+  sectors: { name: string | null } | null;
+};
 
 // --- Definición de Links ---
 const navLinks: NavLink[] = [
-  { name: 'Mi Dashboard', href: '/dashboard', icon: LayoutDashboard, exact: true }, // Marcamos este como de coincidencia exacta
+  { name: 'Mi Dashboard', href: '/dashboard', icon: LayoutDashboard, exact: true },
   { name: 'Cursos', href: '/dashboard/cursos', icon: BookCopy },
   { name: 'Mis Certificados', href: '/dashboard/certificados', icon: Award },
 ];
 
 const adminLinks: NavLink[] = [
-  { name: 'Gestión de Cursos', href: '/admin/cursos', icon: Shield },
-  { name: 'Progreso de Equipo', href: '/admin/progreso', icon: Users },
+  { name: 'Gestión de Cursos', href: '/dashboard/admin/cursos', icon: Shield },
+  { name: 'Progreso de Equipo', href: '/dashboard/admin/progreso', icon: Users },
+  { name: 'Gestión de Usuarios', href: '/dashboard/admin/usuarios', icon: UserPlus },
 ];
 
 export default function DashboardSidebar() {
@@ -36,7 +47,12 @@ export default function DashboardSidebar() {
     const fetchProfile = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data } = await supabase.from('profiles').select(`role_id, full_name, sectors (name)`).eq('id', user.id).single();
+        const { data } = await supabase
+          .from('profiles')
+          .select(`role_id, full_name, sectors (name)`)
+          .eq('id', user.id)
+          .single();
+        
         if (data) {
           setProfile(data as Profile);
           setIsAdmin(data.role_id === 1 || data.role_id === 2);
@@ -52,7 +68,6 @@ export default function DashboardSidebar() {
   };
 
   const NavItem = ({ link }: { link: NavLink }) => {
-    // AQUÍ LA CORRECCIÓN: Usamos coincidencia exacta o 'startsWith' según se necesite
     const isActive = link.exact ? pathname === link.href : pathname.startsWith(link.href);
     return (
       <Link href={link.href}>
