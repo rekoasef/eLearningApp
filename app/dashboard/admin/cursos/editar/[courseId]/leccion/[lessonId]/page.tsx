@@ -6,7 +6,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Film, FileText, BrainCircuit, Edit, Trash2, PlusCircle } from 'lucide-react';
+import { ArrowLeft, Film, FileText, BrainCircuit, Edit, Trash2, PlusCircle, Sparkles, Loader2 } from 'lucide-react';
 
 import AddContentModal from '@/components/admin/AddContentModal';
 import EditContentModal from '@/components/admin/EditContentModal';
@@ -32,6 +32,7 @@ export default function LessonEditPage({ params }: { params: { courseId: string,
   const [isEditContentModalOpen, setIsEditContentModalOpen] = useState(false);
   const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
 
   const fetchLessonData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -59,10 +60,47 @@ export default function LessonEditPage({ params }: { params: { courseId: string,
     }
   };
 
-  const handleCreateQuiz = async () => {
+    const handleCreateQuiz = async (generateWithIA = false) => {
     setError(null);
-    const { data, error } = await supabase.from('quizzes').insert({ lesson_id: lessonId }).select().single();
-    if (error) { setError("Error al crear el quiz."); } else { setQuiz(data); setIsQuizModalOpen(true); }
+    
+    let currentQuizId = quiz?.id;
+
+    // Si no existe un quiz, lo creamos primero para obtener su ID
+    if (!currentQuizId) {
+      const { data: newQuiz, error: createError } = await supabase.from('quizzes').insert({ lesson_id: lessonId }).select().single();
+      if (createError) {
+          setError("Error al crear el contenedor del quiz: " + createError.message);
+          return;
+      }
+      setQuiz(newQuiz);
+      currentQuizId = newQuiz.id;
+    }
+
+    if (generateWithIA) {
+        setIsGeneratingQuiz(true);
+        // Por ahora, usamos un texto de ejemplo. La lectura de PDF es un paso avanzado.
+        const exampleContent = "Crucianelli es una empresa líder en la fabricación de sembradoras. Sus modelos principales incluyen la Gringa y la Pionera. La calibración correcta es crucial para una siembra eficiente.";
+        
+        try {
+            const { data, error } = await supabase.functions.invoke('generate-course-content', {
+                body: { 
+                  mode: 'quiz',
+                  quizId: currentQuizId,
+                  courseContent: exampleContent
+                },
+            });
+
+            if (error) throw error;
+            alert("¡Quiz generado con IA con éxito!");
+            fetchLessonData();
+        } catch (err: any) {
+            setError("Error generando quiz con IA: " + err.message);
+        } finally {
+            setIsGeneratingQuiz(false);
+        }
+    } else {
+        setIsQuizModalOpen(true);
+    }
   };
   
   const handleDeleteQuiz = async () => {
@@ -84,12 +122,11 @@ export default function LessonEditPage({ params }: { params: { courseId: string,
     <>
       <AddContentModal lessonId={lessonId} courseId={courseId} isOpen={isAddContentModalOpen} onClose={() => setIsAddContentModalOpen(false)} onContentAdded={handleContentAdded} />
       <EditContentModal content={selectedContent} isOpen={isEditContentModalOpen} onClose={() => setIsEditContentModalOpen(false)} onContentUpdated={handleContentUpdated} />
-      {quiz && <QuizEditModal quizId={quiz.id} isOpen={isQuizModalOpen} onClose={() => setIsQuizModalOpen(false)} />}
+      {quiz && <QuizEditModal quizId={quiz.id} isOpen={isQuizModalOpen} onClose={() => { setIsQuizModalOpen(false); fetchLessonData(); }} />}
 
       <div className="text-gray-200 p-8">
         <div className="max-w-4xl mx-auto space-y-8">
           <header>
-            {/* RUTA CORREGIDA */}
             <Link href={`/dashboard/admin/cursos/editar/${courseId}`} className="flex items-center gap-2 text-gray-400 hover:text-white">
               <ArrowLeft size={18} /> Volver a la edición del curso
             </Link>
@@ -108,7 +145,7 @@ export default function LessonEditPage({ params }: { params: { courseId: string,
             </div>
             <div className="space-y-3">
               {contents.length > 0 ? contents.map(content => (
-                <div key={content.id} className="flex items-center justify-between bg-gray-800/70 p-4 rounded-lg">
+                 <div key={content.id} className="flex items-center justify-between bg-gray-800/70 p-4 rounded-lg">
                   <div className="flex items-center gap-4">
                     {content.content_type === 'video' ? <Film className="text-blue-400" size={20} /> : <FileText className="text-red-400" size={20} />}
                     <span className="font-medium text-white">{content.title}</span>
@@ -141,9 +178,19 @@ export default function LessonEditPage({ params }: { params: { courseId: string,
             ) : (
                 <div>
                     <p className="text-gray-500 mb-4">Este módulo aún no tiene un quiz.</p>
-                    <button onClick={handleCreateQuiz} className="flex items-center gap-2 bg-teal-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-700">
-                        Crear Quiz Manualmente
-                    </button>
+                    <div className="flex flex-wrap gap-4">
+                        <button onClick={() => handleCreateQuiz(false)} className="flex items-center gap-2 bg-teal-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-700">
+                            Crear Quiz Manualmente
+                        </button>
+                        <button 
+                          onClick={() => handleCreateQuiz(true)} 
+                          disabled={isGeneratingQuiz}
+                          className="flex items-center gap-2 bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                          {isGeneratingQuiz ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                          {isGeneratingQuiz ? 'Generando...' : 'Generar Quiz con IA'}
+                        </button>
+                    </div>
                 </div>
             )}
           </div>

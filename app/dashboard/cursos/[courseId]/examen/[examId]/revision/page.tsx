@@ -1,4 +1,4 @@
-// Ruta: app/cursos/[courseId]/examen/[examId]/revision/page.tsx
+// Ruta: app/dashboard/cursos/[courseId]/examen/[examId]/revision/page.tsx
 
 'use client';
 
@@ -38,7 +38,7 @@ export default function ExamRevisionPage({ params }: { params: { courseId: strin
       .single();
 
     if (examError || !data) { setError("No se pudo cargar la revisión del examen."); setLoading(false); return notFound(); }
-    
+
     const { data: attemptsData, error: attemptError } = await supabase
         .from('final_exam_attempts')
         .select('answers')
@@ -62,11 +62,12 @@ export default function ExamRevisionPage({ params }: { params: { courseId: strin
   }, [fetchExamForReview]);
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white"><p>Cargando revisión...</p></div>;
-  
+
   if (error) return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center text-center p-4">
         <p className="text-red-500 mb-6">{error}</p>
-        <Link href={`/cursos/${courseId}`} className="bg-[#FF4500] text-white py-2 px-4 rounded-lg">
+        {/* RUTA CORREGIDA */}
+        <Link href={`/dashboard/cursos/${courseId}`} className="bg-[#FF4500] text-white py-2 px-4 rounded-lg">
              <ArrowLeft className="inline -mt-1 mr-2" size={16}/> Volver al curso
         </Link>
     </div>
@@ -76,14 +77,15 @@ export default function ExamRevisionPage({ params }: { params: { courseId: strin
     <div className="min-h-screen bg-black text-white p-4 md:p-8">
       <div className="max-w-3xl mx-auto">
         <header className="mb-8">
-            <Link href={`/cursos/${courseId}`} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors w-fit">
+            {/* RUTA CORREGIDA */}
+            <Link href={`/dashboard/cursos/${courseId}`} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors w-fit">
                 <ArrowLeft size={18} /> Volver al temario del curso
             </Link>
         </header>
 
         <h1 className="text-3xl md:text-4xl font-bold text-center mb-2">Revisión: {exam?.title}</h1>
         <p className="text-gray-400 text-center mb-10">Aquí puedes ver tus respuestas y las soluciones correctas.</p>
-        
+
         <div className="space-y-8">
           {exam?.questions.map((q, qIndex) => (
             <div key={q.id} className="bg-[#151515] p-6 rounded-lg border border-gray-800">
@@ -104,7 +106,7 @@ export default function ExamRevisionPage({ params }: { params: { courseId: strin
                       textColor = 'text-green-300 font-semibold';
                       Icon = <Check size={20} className="text-green-500 flex-shrink-0" />;
                   }
-                  
+
                   if (userAnswered && !isCorrect) {
                       bgColor = 'bg-red-500/10';
                       borderColor = 'border-red-500/30';

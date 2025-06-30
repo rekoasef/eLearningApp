@@ -43,7 +43,7 @@ const StatCard = ({ icon, label, value, colorClass, isLink = false, href = '#' }
 export default function DashboardPage() {
   const supabase = createClient();
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null); // Estado para el perfil
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [courses, setCourses] = useState<Course[]>([]);
   const [certificateCount, setCertificateCount] = useState(0);
@@ -55,9 +55,9 @@ export default function DashboardPage() {
       if (!user) { return; }
       setUser(user);
 
-      // Hacemos todas las peticiones en paralelo para más eficiencia
+      // --- CAMBIO CLAVE: USAMOS RPC PARA OBTENER LOS CURSOS ---
       const [coursesRes, progressRes, certRes, profileRes] = await Promise.all([
-        supabase.from('courses').select('id, title, description, start_date, end_date').eq('is_published', true),
+        supabase.rpc('get_courses_for_user'), // ¡Llamada a la función segura!
         supabase.from('course_progress').select('course_id, status').eq('user_id', user.id),
         supabase.from('certificates').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase.from('profiles').select('full_name').eq('id', user.id).single()
@@ -70,7 +70,7 @@ export default function DashboardPage() {
       setProfile(profileRes.data);
       setCertificateCount(certCount);
 
-      const coursesWithStatus = coursesData.map(course => {
+      const coursesWithStatus = coursesData.map((course: any) => {
         const progress = progressData.find(p => p.course_id === course.id);
         return {
           ...course,
@@ -93,9 +93,9 @@ export default function DashboardPage() {
     return { completed, failed, inProgress };
   }, [courses]);
 
-  // Filtramos para mostrar solo los cursos activos y finalizados en el dashboard
+  // Filtramos para mostrar solo los cursos activos en el dashboard
   const relevantCourses = useMemo(() =>
-    courses.filter(c => c.availability === 'ACTIVE' || c.availability === 'FINISHED'),
+    courses.filter(c => c.availability === 'ACTIVE'),
   [courses]);
 
   if (loading) {

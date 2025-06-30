@@ -1,4 +1,4 @@
-// Ruta: app/cursos/[courseId]/quiz/[quizId]/page.tsx
+// Ruta: app/dashboard/cursos/[courseId]/quiz/[quizId]/page.tsx
 
 'use client';
 
@@ -52,14 +52,14 @@ export default function QuizPage({ params }: { params: { courseId: string, quizI
     setSubmitting(true);
     const { data: correctAnswersData, error } = await supabase.from('options').select('id, question_id').eq('is_correct', true).in('question_id', quiz!.questions.map(q => q.id));
     if (error) { setError("Error al verificar respuestas."); setSubmitting(false); return; }
-    
+
     let score = 0;
     for (const question of quiz!.questions) {
       const correctOptions = correctAnswersData.filter(a => a.question_id === question.id).map(a => a.id);
       const userOptions = userAnswers[question.id] || [];
       if (correctOptions.length === userOptions.length && correctOptions.every(id => userOptions.includes(id))) { score++; }
     }
-    
+
     const passed = score >= 3;
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -68,11 +68,11 @@ export default function QuizPage({ params }: { params: { courseId: string, quizI
 
     // Si aprobó, marcamos la lección como completada
     if (passed) {
-      const progressData = { 
-        user_id: user?.id, 
-        lesson_id: quiz!.lesson_id, 
-        is_completed: true, 
-        completed_at: new Date().toISOString() 
+      const progressData = {
+        user_id: user?.id,
+        lesson_id: quiz!.lesson_id,
+        is_completed: true,
+        completed_at: new Date().toISOString()
       };
 
       // Log para ver qué estamos mandando
@@ -92,11 +92,11 @@ export default function QuizPage({ params }: { params: { courseId: string, quizI
   };
 
   const handleCloseResultModal = () => {
-    // ... (función sin cambios)
     setShowResultModal(false);
-    router.push(`/cursos/${courseId}?updated_at=${new Date().getTime()}`);
+    // RUTA CORREGIDA
+    router.push(`/dashboard/cursos/${courseId}?updated_at=${new Date().getTime()}`);
   };
-  
+
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white"><p>Cargando Quiz...</p></div>;
   if (error) return <div className="min-h-screen bg-black flex items-center justify-center text-red-500"><p>{error}</p></div>;
 

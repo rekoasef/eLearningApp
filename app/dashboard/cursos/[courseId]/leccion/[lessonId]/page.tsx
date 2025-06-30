@@ -1,145 +1,227 @@
-// Ruta: app/cursos/[courseId]/leccion/[lessonId]/page.tsx
+// Ruta: app/dashboard/admin/cursos/editar/[courseId]/leccion/[lessonId]/page.tsx
 
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter, notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, CheckSquare } from 'lucide-react';
+import { notFound } from 'next/navigation';
+import { ArrowLeft, Film, FileText, Edit, Trash2, PlusCircle, Sparkles, Loader2 } from 'lucide-react';
+
+// Importamos la librería correcta para leer PDFs en el navegador
+import * as pdfjsLib from 'pdfjs-dist';
+
+import AddContentModal from '@/components/admin/AddContentModal';
+import EditContentModal from '@/components/admin/EditContentModal';
+import QuizEditModal from '@/components/admin/QuizEditModal';
+
+// Configuración ESENCIAL para que 'pdfjs-dist' funcione en Next.js
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 // --- Tipos ---
-type LessonDetails = { id: string; title: string; contents: Content[]; quiz: Quiz | null; };
-type Content = { id: string; content_type: 'video' | 'pdf'; title: string; url: string; };
-type Quiz = { id: string; };
-type CourseAvailability = 'ACTIVE' | 'UPCOMING' | 'FINISHED';
+type LessonDetails = { id: string; title: string; course_id: string; };
+type Content = { id: string; lesson_id: string; content_type: 'video' | 'pdf'; title: string; url: string; };
+type Quiz = { id: string; lesson_id: string; };
 
-// --- Helpers ---
-const getEmbedUrl = (url: string) => {
-  try {
-    const urlObj = new URL(url);
-    if (urlObj.hostname === 'www.youtube.com' || urlObj.hostname === 'youtu.be') {
-      const videoId = urlObj.hostname === 'youtu.be' ? urlObj.pathname.slice(1) : urlObj.searchParams.get('v');
-      return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
-    }
-  } catch (error) {
-    return url;
-  }
-  return url;
-};
-
-const getCourseAvailability = (startDate: string | null, endDate: string | null): CourseAvailability => {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0); 
-    const start = startDate ? new Date(startDate) : null;
-    const end = endDate ? new Date(endDate) : null;
-    if (end && now > end) return 'FINISHED';
-    if (start && now < start) return 'UPCOMING';
-    return 'ACTIVE';
-};
-
-// --- Componente Principal ---
-export default function LessonPage({ params }: { params: { courseId:string, lessonId: string } }) {
-  const router = useRouter();
+export default function LessonEditPage({ params }: { params: { courseId: string, lessonId: string } }) {
   const supabase = createClient();
   const { courseId, lessonId } = params;
 
-  const [lessonDetails, setLessonDetails] = useState<LessonDetails | null>(null);
+  // --- Estados ---
+  const [lesson, setLesson] = useState<LessonDetails | null>(null);
+  const [contents, setContents] = useState<Content[]>([]);
+  const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isCourseFinished, setIsCourseFinished] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isAddContentModalOpen, setIsAddContentModalOpen] = useState(false);
+  const [isEditContentModalOpen, setIsEditContentModalOpen] = useState(false);
+  const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
+  const [selectedContent, setSelectedContent] = useState<Content | null>(null);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
 
   const fetchLessonData = useCallback(async () => {
-    setLoading(true);
-    
-    // Hacemos las peticiones en paralelo para mejorar el rendimiento
-    const [lessonRes, contentsRes, quizRes, courseRes] = await Promise.all([
-        supabase.from('lessons').select('id, title').eq('id', lessonId).single(),
-        supabase.from('contents').select('*').eq('lesson_id', lessonId),
-        supabase.from('quizzes').select('id').eq('lesson_id', lessonId).maybeSingle(),
-        supabase.from('courses').select('start_date, end_date').eq('id', courseId).single()
-    ]);
+    setLoading(true); setError(null);
+    const lessonRes = await supabase.from('lessons').select('id, title, course_id').eq('id', lessonId).eq('course_id', courseId).single();
+    if (lessonRes.error || !lessonRes.data) { setLoading(false); return notFound(); }
+    setLesson(lessonRes.data);
 
-    if (lessonRes.error || !lessonRes.data) {
-        setLoading(false);
-        return notFound();
-    }
-    
-    if(courseRes.data) {
-        setIsCourseFinished(getCourseAvailability(courseRes.data.start_date, courseRes.data.end_date) === 'FINISHED');
-    }
+    const contentsRes = await supabase.from('contents').select('*').eq('lesson_id', lessonId).order('created_at', { ascending: true });
+    if (contentsRes.error) { setError('Error al cargar los contenidos.'); } else { setContents(contentsRes.data || []); }
 
-    setLessonDetails({ 
-        ...lessonRes.data, 
-        contents: contentsRes.data || [], 
-        quiz: quizRes.data || null 
-    });
-
+    const quizRes = await supabase.from('quizzes').select('id, lesson_id').eq('lesson_id', lessonId).maybeSingle();
+    if (!quizRes.error && quizRes.data) { setQuiz(quizRes.data); }
     setLoading(false);
-  }, [lessonId, courseId, supabase]);
+  }, [courseId, lessonId, supabase]);
 
   useEffect(() => { fetchLessonData(); }, [fetchLessonData]);
+  
+  const handleContentAdded = () => { fetchLessonData(); setIsAddContentModalOpen(false); };
+  const handleOpenEditModal = (content: Content) => { setSelectedContent(content); setIsEditContentModalOpen(true); };
+  const handleContentUpdated = (updatedContent: Content) => setContents(prev => prev.map(c => c.id === updatedContent.id ? updatedContent : c));
+  
+  const handleDeleteContent = async (contentId: string) => {
+    if (window.confirm("¿Estás seguro de que querés borrar este contenido?")) {
+      const { error } = await supabase.from('contents').delete().eq('id', contentId);
+      if (error) { setError("Error al borrar el contenido: " + error.message); } 
+      else { fetchLessonData(); }
+    }
+  };
+  
+  const handleCreateQuiz = async (generateWithIA = false) => {
+    setError(null);
+    let currentQuizId = quiz?.id;
 
-  // --- Vistas de Carga y Error ---
-  if (loading) {
-    return (
-        <div className="min-h-screen bg-black flex items-center justify-center text-white">
-            <svg className="animate-spin h-8 w-8 text-[#FF4500]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-        </div>
-    );
-  }
+    if (!currentQuizId) {
+      const { data: newQuiz, error: createError } = await supabase.from('quizzes').insert({ lesson_id: lessonId }).select().single();
+      if (createError) {
+        setError("Error al crear el quiz: " + createError.message);
+        return;
+      }
+      setQuiz(newQuiz);
+      currentQuizId = newQuiz.id;
+    }
+
+    if (generateWithIA) {
+      setIsGeneratingQuiz(true);
+      const pdfContent = contents.find(c => c.content_type === 'pdf');
+      
+      if (!pdfContent?.url) {
+        setError("Añade un PDF al módulo para poder generar el quiz con IA.");
+        setIsGeneratingQuiz(false);
+        return;
+      }
+      
+      try {
+        const response = await fetch(pdfContent.url);
+        const arrayBuffer = await response.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+        let fullText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          fullText += textContent.items.map(item => 'str' in item ? item.str : '').join(' ');
+        }
+        
+        if (fullText.length < 50) {
+            throw new Error("El PDF no contiene suficiente texto legible.");
+        }
+
+        const { error: functionError } = await supabase.functions.invoke('generate-course-content', {
+            body: { 
+              mode: 'quiz',
+              quizId: currentQuizId,
+              courseContent: fullText 
+            },
+        });
+
+        if (functionError) throw functionError;
+        
+        alert("¡Quiz generado con IA con éxito! Refrescando...");
+        fetchLessonData(); 
+      } catch (err: any) {
+        const errorMessage = err.data?.error || err.message || 'Ocurrió un error desconocido.';
+        setError("Error generando quiz con IA: " + errorMessage);
+      } finally {
+        setIsGeneratingQuiz(false);
+      }
+    } else {
+      setIsQuizModalOpen(true);
+    }
+  };
   
-  if (!lessonDetails) {
-    return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
-          <p className="text-red-500 mb-4">No se pudo cargar la lección.</p>
-          <Link href={`/cursos/${courseId}`} className="text-white bg-[#FF4500] py-2 px-4 rounded-lg">Volver al curso</Link>
-      </div>
-    );
-  }
-  
-  // --- Renderizado Principal (Ahora seguro) ---
-  const mainContent = lessonDetails.contents[0];
-  const contentUrl = mainContent ? getEmbedUrl(mainContent.url) : '';
+  const handleDeleteQuiz = async () => {
+    if (!quiz) return;
+    if (window.confirm("¿Seguro que querés borrar este quiz y todas sus preguntas?")) {
+        const { error } = await supabase.from('quizzes').delete().eq('id', quiz.id);
+        if (error) {
+            setError("Error al borrar el quiz: " + error.message);
+        } else {
+            setQuiz(null);
+        }
+    }
+  };
+
+  if (loading) return <div className="p-8 text-white text-center">Cargando...</div>;
+  if (!lesson) return notFound();
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <div className="max-w-5xl mx-auto p-4 sm:p-8">
-        <header className="mb-8">
-          <Link href={`/cursos/${courseId}`} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors w-fit">
-            <ArrowLeft size={18} /> Volver al temario del curso
-          </Link>
-        </header>
-        <main>
-            <h1 className="text-3xl sm:text-4xl font-bold mb-6">{lessonDetails.title}</h1>
-            <div className="aspect-video bg-[#151515] rounded-xl border border-gray-800 mb-6 overflow-hidden">
-              {mainContent ? (
-                <>
-                  {mainContent.content_type === 'video' && (<iframe width="100%" height="100%" src={contentUrl} title={mainContent.title} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>)}
-                  {mainContent.content_type === 'pdf' && (<iframe src={mainContent.url} width="100%" height="100%" title={mainContent.title}></iframe>)}
-                </>
-              ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500"><p>Este módulo aún no tiene material cargado.</p></div>
+    <>
+      <AddContentModal lessonId={lessonId} courseId={courseId} isOpen={isAddContentModalOpen} onClose={handleContentAdded} />
+      <EditContentModal content={selectedContent} isOpen={isEditContentModalOpen} onClose={() => setIsEditContentModalOpen(false)} onContentUpdated={handleContentUpdated} />
+      {quiz && <QuizEditModal quizId={quiz.id} isOpen={isQuizModalOpen} onClose={() => setIsQuizModalOpen(false)} />}
+
+      <div className="text-gray-200 p-8">
+        <div className="max-w-4xl mx-auto space-y-8">
+          <header>
+            <Link href={`/dashboard/admin/cursos/editar/${courseId}`} className="flex items-center gap-2 text-gray-400 hover:text-white">
+              <ArrowLeft size={18} /> Volver a la edición del curso
+            </Link>
+          </header>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-white">Gestionar Módulo: {lesson.title}</h1>
+            <p className="text-gray-400">Añadí, editá o eliminá el material de este módulo.</p>
+          </div>
+          {error && <p className="text-red-400 bg-red-900/50 p-3 rounded-md">{error}</p>}
+          <div className="bg-[#151515] rounded-xl border border-gray-800 p-8">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white">Contenidos del Módulo</h2>
+              <button onClick={() => setIsAddContentModalOpen(true)} className="flex items-center gap-2 bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700">
+                <PlusCircle size={18} /> Agregar Contenido
+              </button>
+            </div>
+            <div className="space-y-3">
+              {contents.length > 0 ? contents.map(content => (
+                 <div key={content.id} className="flex items-center justify-between bg-gray-800/70 p-4 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    {content.content_type === 'video' ? <Film className="text-blue-400" size={20} /> : <FileText className="text-red-400" size={20} />}
+                    <span className="font-medium text-white">{content.title}</span>
+                  </div>
+                  <div className="flex gap-4">
+                    <button onClick={() => handleOpenEditModal(content)} className="text-gray-400 hover:text-white"><Edit size={18}/></button>
+                    <button onClick={() => handleDeleteContent(content.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={18}/></button>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-center text-gray-500 bg-gray-900/50 p-6 rounded-lg"><p>Este módulo todavía no tiene contenido.</p></div>
               )}
             </div>
-            {lessonDetails.quiz ? (
-                 <Link 
-                    href={!isCourseFinished ? `/cursos/${courseId}/quiz/${lessonDetails.quiz.id}` : '#'}
-                    className={`block text-center w-full font-bold py-3 rounded-lg transition-all ${ isCourseFinished ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-[#FF4500] text-white hover:bg-orange-600' }`}
-                    aria-disabled={isCourseFinished}
-                    onClick={(e) => isCourseFinished && e.preventDefault()}
-                  >
-                    <div className="flex items-center justify-center gap-3">
-                        <CheckSquare size={20} />
-                        {isCourseFinished ? 'Quiz Cerrado' : 'Realizar Quiz para Continuar'}
+          </div>
+          
+          <div className="bg-[#151515] rounded-xl border border-gray-800 p-8">
+            <h2 className="text-2xl font-bold text-white mb-4">Quiz Evaluatorio</h2>
+            {quiz ? (
+                <div>
+                    <p className="text-green-400 mb-4">Este módulo ya tiene un quiz. Podés editarlo o eliminarlo.</p>
+                    <div className="flex gap-4">
+                        <button onClick={() => setIsQuizModalOpen(true)} className="flex items-center gap-2 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">
+                            <Edit size={18} /> Editar Preguntas
+                        </button>
+                        <button onClick={handleDeleteQuiz} className="flex items-center gap-2 bg-red-800 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700">
+                            <Trash2 size={18} /> Eliminar Quiz
+                        </button>
                     </div>
-                </Link>
+                </div>
             ) : (
-                <button className="w-full flex items-center justify-center gap-3 bg-gray-600 text-white font-bold py-3 rounded-lg hover:bg-gray-500 transition-all">
-                    Marcar como Visto y Continuar (Sin Quiz)
-                </button>
+                <div>
+                    <p className="text-gray-500 mb-4">Este módulo aún no tiene un quiz.</p>
+                    <div className="flex flex-wrap gap-4">
+                        <button onClick={() => handleCreateQuiz(false)} className="flex items-center gap-2 bg-teal-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-700">
+                            Crear Quiz Manualmente
+                        </button>
+                        <button 
+                          onClick={() => handleCreateQuiz(true)} 
+                          disabled={isGeneratingQuiz || !contents.some(c => c.content_type === 'pdf')}
+                          className="flex items-center gap-2 bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={!contents.some(c => c.content_type === 'pdf') ? 'Añade un PDF para usar esta función' : ''}>
+                          {isGeneratingQuiz ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                          {isGeneratingQuiz ? 'Generando...' : 'Generar Quiz con IA'}
+                        </button>
+                    </div>
+                </div>
             )}
-        </main>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

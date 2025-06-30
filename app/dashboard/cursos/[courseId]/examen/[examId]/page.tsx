@@ -1,4 +1,4 @@
-// Ruta: app/cursos/[courseId]/examen/[examId]/page.tsx
+// Ruta: app/dashboard/cursos/[courseId]/examen/[examId]/page.tsx
 
 'use client';
 
@@ -59,18 +59,18 @@ export default function FinalExamPage({ params }: { params: { courseId: string, 
     const currentStatus = progress?.status || 'in_progress';
     const remaining = 2 - currentAttempts;
     setAttemptsLeft(remaining);
-    
+
     if (currentStatus === 'completed' || currentStatus === 'failed' || remaining <= 0) {
         setCanAttempt(false);
         setError("Ya no puedes rendir este examen.");
         setLoading(false);
         return;
     }
-    
+
     setCanAttempt(true);
 
     const { data, error: examError } = await supabase.from('final_exams').select(`*, questions(*, options(*))`).eq('id', examId).single();
-    
+
     if (examError || !data) {
         setError("No se pudo cargar el examen.");
         setLoading(false);
@@ -81,12 +81,12 @@ export default function FinalExamPage({ params }: { params: { courseId: string, 
   }, [examId, courseId, router, supabase]);
 
   useEffect(() => { fetchExamData(); }, [fetchExamData]);
-  
+
   const handleAnswerChange = (questionId: string, optionId: string, questionType: 'single' | 'multiple') => {
     setUserAnswers(prev => {
         const newAnswers = { ...prev };
         const currentAnswers = newAnswers[questionId] || [];
-        if (questionType === 'single') { newAnswers[questionId] = [optionId]; } 
+        if (questionType === 'single') { newAnswers[questionId] = [optionId]; }
         else { if (currentAnswers.includes(optionId)) { newAnswers[questionId] = currentAnswers.filter(id => id !== optionId); } else { newAnswers[questionId] = [...currentAnswers, optionId]; } }
         return newAnswers;
     });
@@ -100,7 +100,7 @@ export default function FinalExamPage({ params }: { params: { courseId: string, 
 
     const { data: correctAnswersData, error: answersError } = await supabase.from('options').select('id, question_id').eq('is_correct', true).in('question_id', exam.questions.map(q => q.id));
     if (answersError) { setError("Error al verificar respuestas."); setSubmitting(false); return; }
-    
+
     let score = 0;
     for (const question of exam.questions) {
       const correctOptions = correctAnswersData.filter(a => a.question_id === question.id).map(a => a.id);
@@ -108,9 +108,9 @@ export default function FinalExamPage({ params }: { params: { courseId: string, 
       const isCorrect = correctOptions.length === userOptions.length && correctOptions.every(id => userOptions.includes(id));
       if (isCorrect) { score++; }
     }
-    
+
     const passed = score >= (exam.questions.length * 0.7);
-    
+
     const { data: currentProgress } = await supabase
         .from('course_progress')
         .select('exam_attempts')
@@ -121,7 +121,6 @@ export default function FinalExamPage({ params }: { params: { courseId: string, 
     const newAttempts = (currentProgress?.exam_attempts || 0) + 1;
     const finalStatus = passed ? 'completed' : (newAttempts >= 2 ? 'failed' : 'in_progress');
 
-    // **AQUÍ LA CORRECCIÓN DEFINITIVA: Usamos UPSERT**
     const { data: updatedProgress, error: progressError } = await supabase
         .from('course_progress')
         .upsert({
@@ -131,8 +130,8 @@ export default function FinalExamPage({ params }: { params: { courseId: string, 
             exam_attempts: newAttempts,
             final_score: score,
             completed_at: new Date().toISOString()
-        }, { 
-            onConflict: 'user_id, course_id' // Le indicamos cómo encontrar un conflicto
+        }, {
+            onConflict: 'user_id, course_id'
         })
         .select('id')
         .single();
@@ -155,7 +154,7 @@ export default function FinalExamPage({ params }: { params: { courseId: string, 
     if (attemptError) { setError('Error al guardar el detalle del intento.'); setSubmitting(false); return; }
 
     setFinalScore({ score, total: exam.questions.length, passed, isGeneratingCert: passed, attemptsLeft: 2 - newAttempts });
-    setShowResultModal(true); 
+    setShowResultModal(true);
 
     if (passed) {
       try {
@@ -168,37 +167,40 @@ export default function FinalExamPage({ params }: { params: { courseId: string, 
     }
     setSubmitting(false);
   };
-  
+
   const handleCloseResultModal = () => {
     setShowResultModal(false);
     if(finalScore.passed || finalScore.attemptsLeft <= 0) {
-        router.push(`/cursos/${courseId}`);
+        // RUTA CORREGIDA
+        router.push(`/dashboard/cursos/${courseId}`);
     } else {
         setUserAnswers({});
         fetchExamData();
     }
     router.refresh();
   };
-  
+
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white"><p>Cargando Examen Final...</p></div>;
-  
+
   if (error) return (
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center text-center p-4">
           <ShieldAlert size={60} className="text-red-500 mb-4"/>
           <h1 className="text-2xl font-bold mb-2">Acceso denegado</h1>
           <p className="text-gray-400 mb-6">{error || "No es posible rendir este examen."}</p>
-          <Link href={`/cursos/${courseId}`} className="bg-[#FF4500] text-white py-2 px-4 rounded-lg">
+          {/* RUTA CORREGIDA */}
+          <Link href={`/dashboard/cursos/${courseId}`} className="bg-[#FF4500] text-white py-2 px-4 rounded-lg">
              <ArrowLeft className="inline -mt-1 mr-2" size={16}/> Volver al curso
           </Link>
       </div>
   );
-  
+
   if (!canAttempt) return (
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center text-center p-4">
           <ShieldAlert size={60} className="text-red-500 mb-4"/>
           <h1 className="text-2xl font-bold mb-2">Acceso denegado</h1>
           <p className="text-gray-400 mb-6">Ya no puedes rendir este examen.</p>
-          <Link href={`/cursos/${courseId}`} className="bg-[#FF4500] text-white py-2 px-4 rounded-lg">
+          {/* RUTA CORREGIDA */}
+          <Link href={`/dashboard/cursos/${courseId}`} className="bg-[#FF4500] text-white py-2 px-4 rounded-lg">
              <ArrowLeft className="inline -mt-1 mr-2" size={16}/> Volver al curso
           </Link>
       </div>
@@ -207,13 +209,13 @@ export default function FinalExamPage({ params }: { params: { courseId: string, 
   return (
     <>
       <QuizResultModal isOpen={showResultModal} onClose={handleCloseResultModal} passed={finalScore.passed} score={finalScore.score} totalQuestions={finalScore.total} certificateUrl={finalScore.certificateUrl} isGeneratingCert={finalScore.isGeneratingCert} isFinalExam={true} attemptsLeft={finalScore.attemptsLeft} />
-      
+
       <div className="min-h-screen bg-black text-white p-4 md:p-8">
         <div className="max-w-3xl mx-auto">
           <h1 className="text-3xl md:text-4xl font-bold text-center mb-2">{exam?.title}</h1>
           <p className="text-gray-400 text-center mb-4">Respondé a las siguientes preguntas para finalizar el curso.</p>
           <p className="text-center font-bold text-amber-400 border border-amber-500/50 bg-amber-900/30 rounded-lg py-2 mb-10">Intento restante: {attemptsLeft}</p>
-          
+
           <div className="space-y-8">
             {exam?.questions.sort((a,b) => a.order - b.order).map((q, qIndex) => (
               <div key={q.id} className="bg-[#151515] p-6 rounded-lg border border-gray-800">
@@ -221,11 +223,11 @@ export default function FinalExamPage({ params }: { params: { courseId: string, 
                 <div className="space-y-3">
                   {q.options.map(opt => (
                     <label key={opt.id} className="flex items-center gap-3 p-3 rounded-md bg-gray-800 hover:bg-gray-700 cursor-pointer transition-colors">
-                      <input 
-                        type={q.question_type === 'single' ? 'radio' : 'checkbox'} 
-                        name={`question-${q.id}`} 
-                        checked={(userAnswers[q.id] || []).includes(opt.id)} 
-                        onChange={() => handleAnswerChange(q.id, opt.id, q.question_type)} 
+                      <input
+                        type={q.question_type === 'single' ? 'radio' : 'checkbox'}
+                        name={`question-${q.id}`}
+                        checked={(userAnswers[q.id] || []).includes(opt.id)}
+                        onChange={() => handleAnswerChange(q.id, opt.id, q.question_type)}
                         className={`h-5 w-5 text-[#FF4500] bg-gray-700 border-gray-600 focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-[#FF4500] ${q.question_type === 'single' ? 'rounded-full' : 'rounded'}`}/>
                       <span>{opt.option_text}</span>
                     </label>
@@ -235,9 +237,9 @@ export default function FinalExamPage({ params }: { params: { courseId: string, 
             ))}
           </div>
           <div className="mt-10 flex justify-center">
-            <button 
-              onClick={handleSubmit} 
-              disabled={submitting} 
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
               className="w-full max-w-md bg-amber-500 text-white font-bold py-3 text-lg rounded-lg hover:bg-amber-600 disabled:bg-gray-600 transition-colors"
             >
               {submitting ? "Corrigiendo..." : "Finalizar Examen"}

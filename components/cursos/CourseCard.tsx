@@ -3,7 +3,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BookOpen, CheckCircle } from 'lucide-react';
+import { BookOpen, CheckCircle, XCircle } from 'lucide-react'; // Importamos XCircle
 
 // --- Tipos ---
 type CourseAvailability = 'ACTIVE' | 'UPCOMING' | 'FINISHED';
@@ -21,6 +21,7 @@ export type CourseCardType = {
 // --- Componente ---
 export default function CourseCard({ course }: { course: CourseCardType }) {
   const isCompleted = course.status === 'completed';
+  const isFailed = course.status === 'failed'; // Añadimos una variable para el estado 'failed'
   const isFinished = course.availability === 'FINISHED';
   const isUpcoming = course.availability === 'UPCOMING';
 
@@ -34,21 +35,35 @@ export default function CourseCard({ course }: { course: CourseCardType }) {
   }
   
   const Wrapper = isUpcoming ? 'div' : Link;
-  const linkProps = isUpcoming ? {} : { href: `/cursos/${course.id}` };
+  const linkProps = isUpcoming ? {} : { href: `/dashboard/cursos/${course.id}` };
+
+  // --- LÓGICA DE ESTILOS CORREGIDA ---
+  let borderColor = 'border-gray-800';
+  if (isCompleted) borderColor = 'border-green-500/50';
+  if (isFailed) borderColor = 'border-red-500/50';
+
+  let icon = <BookOpen size={28} className="text-gray-500" />;
+  if (isCompleted) icon = <BookOpen size={28} className="text-green-400" />;
+  if (isFailed) icon = <XCircle size={28} className="text-red-400" />; // Usamos el ícono XCircle para desaprobado
 
   return (
     <Wrapper {...linkProps}>
-      <div className={`relative group h-full bg-[#151515] rounded-xl p-6 transition-all ease-in-out flex flex-col
-          ${isCompleted ? 'border-2 border-green-500/50' : 'border border-gray-800'}
-          ${(isFinished || isUpcoming) ? 'opacity-60 hover:opacity-100' : 'hover:scale-[1.02] hover:border-[#FF4500]/30'}
+      <div className={`relative group h-full bg-[#151515] rounded-xl p-6 transition-all ease-in-out flex flex-col border ${borderColor}
+          ${(isFinished || isUpcoming) ? 'opacity-70 hover:opacity-100' : 'hover:scale-[1.02] hover:border-[#FF4500]/30'}
           ${isUpcoming ? 'cursor-not-allowed' : 'cursor-pointer'}
       `}>
         {badge}
+        
+        {/* Mostramos un ícono de estado si está completado o fallado */}
         {isCompleted && !isFinished && !isUpcoming && (
           <div className="absolute top-4 left-4 bg-green-500 text-black rounded-full p-1"><CheckCircle size={20} /></div>
         )}
-        <div className={`w-14 h-14 rounded-lg flex items-center justify-center my-5 transition-colors ${isCompleted ? 'bg-green-500/10' : 'bg-gray-800/50'}`}>
-            <BookOpen size={28} className={isCompleted ? "text-green-400" : "text-gray-500"} />
+        {isFailed && !isFinished && !isUpcoming && (
+          <div className="absolute top-4 left-4 bg-red-800 text-white rounded-full p-1"><XCircle size={20} /></div>
+        )}
+
+        <div className="w-14 h-14 rounded-lg flex items-center justify-center my-5 bg-gray-800/50 transition-colors">
+            {icon}
         </div>
         <h4 className="text-lg font-bold text-white mb-2">{course.title}</h4>
         <p className="text-gray-400 text-sm mb-4 line-clamp-2 flex-grow">{course.description}</p>

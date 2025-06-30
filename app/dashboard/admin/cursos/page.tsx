@@ -16,6 +16,7 @@ type Course = {
   is_published: boolean;
   start_date: string | null;
   end_date: string | null;
+  created_at: string;
 };
 
 export default function AdminCoursesPage() {
@@ -30,13 +31,18 @@ export default function AdminCoursesPage() {
 
   const fetchCourses = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('courses')
-      .select('*')
-      .order('created_at', { ascending: false });
+    // --- CAMBIO CLAVE: Usamos la nueva función específica para admins ---
+    const { data, error } = await supabase.rpc('get_admin_courses');
 
-    if (error) console.error('Error fetching courses:', error);
-    else setCourses(data || []);
+    if (error) {
+        console.error('Error fetching admin courses via rpc:', error);
+        setCourses([]);
+    } else {
+        const sortedData = (data || []).sort((a: Course, b: Course) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        setCourses(sortedData);
+    }
     setLoading(false);
   };
 
@@ -90,7 +96,6 @@ export default function AdminCoursesPage() {
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold text-white">Gestión de Cursos</h1>
-            {/* RUTA CORREGIDA */}
             <Link href="/dashboard/admin/cursos/nuevo" className="flex items-center gap-2 bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">
               <PlusCircle size={20} /> Crear Nuevo Curso
             </Link>
@@ -123,7 +128,6 @@ export default function AdminCoursesPage() {
                           <td className="p-4 text-gray-400">{formatDate(course.start_date)}</td>
                           <td className="p-4 text-gray-400">{formatDate(course.end_date)}</td>
                           <td className="p-4 flex justify-end gap-4">
-                              {/* RUTA CORREGIDA */}
                               <Link href={`/dashboard/admin/cursos/editar/${course.id}`} className="text-blue-400 hover:text-blue-300"><Edit size={18}/></Link>
                               <button onClick={() => openDeleteModal(course)} className="text-red-500 hover:text-red-400"><Trash2 size={18}/></button>
                           </td>

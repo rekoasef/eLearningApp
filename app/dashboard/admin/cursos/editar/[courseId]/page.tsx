@@ -75,7 +75,7 @@ export default function EditCoursePage({ params }: { params: { courseId: string 
     const { error } = await supabase.from('courses').update({ 
       title, 
       description, 
-      is_published: isPublished, // CORRECCIÓN: Usar la variable de estado 'isPublished'
+      is_published: isPublished,
       start_date: startDate || null,
       end_date: endDate || null
     }).eq('id', courseId);
@@ -85,14 +85,17 @@ export default function EditCoursePage({ params }: { params: { courseId: string 
   
   const handleCreateLesson = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     if (!newLessonTitle) return;
     const order = lessons.length > 0 ? Math.max(...lessons.map(l => l.order)) + 1 : 1;
-    // CORRECCIÓN: Eliminado 'content_type' que no pertenece a esta tabla
+    
+    // El objeto a insertar solo debe tener las columnas que existen en la tabla 'lessons'.
     const { data, error } = await supabase.from('lessons').insert({ 
         title: newLessonTitle, 
         course_id: courseId, 
         order 
     }).select().single();
+
     if (error) {
         setError('Error al crear módulo: ' + error.message);
     } else if (data) {

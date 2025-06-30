@@ -18,7 +18,7 @@ type Question = {
 type Option = { id?: string; option_text: string; is_correct: boolean; };
 type QuizEditModalProps = { quizId: string; isOpen: boolean; onClose: () => void; };
 
-// --- Componente con Lógica RPC ---
+// --- Componente con Lógica Corregida ---
 export default function QuizEditModal({ quizId, isOpen, onClose }: QuizEditModalProps) {
   const supabase = createClient();
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -29,8 +29,15 @@ export default function QuizEditModal({ quizId, isOpen, onClose }: QuizEditModal
   const fetchQuestions = useCallback(async () => {
     if (!isOpen) return;
     setLoading(true);
-    // Usamos la consulta directa que ya funcionaba
-    const { data, error } = await supabase.from('questions').select(`*, options (*)`).eq('quiz_id', quizId).order('order', { foreignTable: 'questions' });
+
+    // --- AQUÍ LA CORRECCIÓN ---
+    // Simplificamos la cláusula de ordenamiento para que sea inequívoca.
+    const { data, error } = await supabase
+      .from('questions')
+      .select(`*, options (*)`)
+      .eq('quiz_id', quizId)
+      .order('order', { ascending: true }); // Ordenamos directamente por la columna 'order'
+
     if (error) {
       setError('Error al cargar las preguntas.');
     } else {
@@ -53,23 +60,21 @@ export default function QuizEditModal({ quizId, isOpen, onClose }: QuizEditModal
   const removeQuestion = (index: number) => { setQuestions(questions.filter((_, i) => i !== index).map((q, i) => ({ ...q, order: i + 1 }))); };
   const removeOption = (qIndex: number, oIndex: number) => { const newQuestions = [...questions]; newQuestions[qIndex].options = newQuestions[qIndex].options.filter((_, i) => i !== oIndex); setQuestions(newQuestions); };
   
-  // ----- LÓGICA DE GUARDADO USANDO RPC -----
+  // ----- LÓGICA DE GUARDADO (sin cambios) -----
   const handleSaveChanges = async () => {
     setSaving(true);
     setError(null);
 
-    // Preparamos los datos para la función RPC
     const questionsToSave = questions.map((q, index) => ({
       question_text: q.question_text,
       question_type: q.question_type,
-      order: index + 1, // Re-calculamos el orden para asegurar consistencia
+      order: index + 1,
       options: q.options.map(opt => ({
         option_text: opt.option_text,
         is_correct: opt.is_correct,
       }))
     }));
 
-    // Llamamos a nuestra "super-función" en Supabase
     const { error: rpcError } = await supabase.rpc('update_quiz_questions', {
       quiz_id_in: quizId,
       questions_in: questionsToSave,
@@ -79,7 +84,7 @@ export default function QuizEditModal({ quizId, isOpen, onClose }: QuizEditModal
       setError(`Error al guardar el quiz: ${rpcError.message}`);
       console.error(rpcError);
     } else {
-      onClose(); // Si todo sale bien, cerramos el modal
+      onClose();
     }
     setSaving(false);
   };
@@ -93,8 +98,7 @@ export default function QuizEditModal({ quizId, isOpen, onClose }: QuizEditModal
         <div className="flex-grow overflow-y-auto pr-4 space-y-6">
           {loading ? (<p>Cargando preguntas...</p>) : (
             questions.map((q, qIndex) => (
-              <div key={q.id} className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
-                {/* ... (resto del JSX sin cambios) ... */}
+              <div key={q.id || qIndex} className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
                 <div className="flex justify-between items-center mb-3">
                   <label className="font-bold text-lg">Pregunta {qIndex + 1}</label>
                   <div className="flex items-center gap-4">
