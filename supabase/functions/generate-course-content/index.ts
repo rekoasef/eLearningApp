@@ -4,7 +4,7 @@ import { corsHeaders } from '../_shared/cors.ts'
 
 const GEMINI_MODEL = 'gemini-1.5-flash';
 
-// Volvemos a definir los dos tipos de payloads que puede recibir la función
+// Tipos de Payload
 interface GenerateDetailsPayload {
   mode: 'details';
   title: string;
@@ -30,10 +30,8 @@ serve(async (req) => {
     
     let prompt = '';
     
-    // --- LÓGICA IF/ELSE REINTRODUCIDA ---
-    // Ahora la función vuelve a saber qué hacer en cada caso.
     if (payload.mode === 'details') {
-      if (!payload.title) throw new Error("El título es obligatorio para generar detalles.");
+      if (!('title' in payload) || !payload.title) throw new Error("El título es obligatorio para generar detalles.");
       prompt = `
         Actúa como un experto diseñador de capacitaciones para una empresa de maquinaria agrícola líder llamada Crucianelli.
         Tu tarea es crear el contenido para un nuevo curso de capacitación interna.
@@ -43,7 +41,7 @@ serve(async (req) => {
         El texto del "syllabus" debe usar saltos de línea con '\\n' para separar los módulos.`;
 
     } else if (payload.mode === 'quiz') {
-      if (!payload.courseContent) throw new Error("No se proporcionó contenido para generar el quiz.");
+      if (!('courseContent' in payload) || !payload.courseContent) throw new Error("No se proporcionó contenido para generar el quiz.");
       
       prompt = `
         Actúa como un evaluador experto para una plataforma de e-learning de maquinaria agrícola.
@@ -71,9 +69,9 @@ serve(async (req) => {
     }
 
     const geminiResponse = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
     });
 
     if (!geminiResponse.ok) {
@@ -109,7 +107,6 @@ serve(async (req) => {
       });
     }
 
-    // Si el modo era 'details', simplemente devolvemos el contenido.
     return new Response(JSON.stringify(content), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
     });
