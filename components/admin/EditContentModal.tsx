@@ -4,15 +4,11 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+// --- ¡CAMBIO IMPORTANTE! ---
+import { Content } from '@/types';
 
 // Tipos
-type Content = {
-  id: string;
-  content_type: 'video' | 'pdf';
-  title: string;
-  url: string;
-};
-
+// Ya no definimos 'Content' aquí.
 type EditContentModalProps = {
   content: Content | null;
   isOpen: boolean;
@@ -29,7 +25,6 @@ export default function EditContentModal({ content, isOpen, onClose, onContentUp
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Cuando el modal se abre, cargamos los datos del contenido a editar
     if (content) {
       setTitle(content.title);
       setUrl(content.url);
@@ -58,7 +53,7 @@ export default function EditContentModal({ content, isOpen, onClose, onContentUp
       return;
     }
 
-    onContentUpdated(updatedContent);
+    onContentUpdated(updatedContent as Content); // Hacemos un casting para asegurar el tipo
     setSaving(false);
     onClose();
   };
@@ -73,7 +68,6 @@ export default function EditContentModal({ content, isOpen, onClose, onContentUp
             <input id="title" type="text" value={title} onChange={(e) => setTitle(e.target.value)}
               className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md" required />
           </div>
-          {/* Solo mostramos la URL para videos, ya que cambiar el PDF es más complejo */}
           {content.content_type === 'video' && (
              <div>
                 <label htmlFor="url" className="block text-sm font-medium text-gray-300 mb-2">URL del Video</label>
