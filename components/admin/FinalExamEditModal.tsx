@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Trash2, PlusCircle } from 'lucide-react';
+import { Trash2, PlusCircle, Sparkles, Loader2 } from 'lucide-react';
 
 // --- Tipos de Datos ---
 type Question = {
@@ -16,32 +16,35 @@ type Question = {
   options: Option[];
 };
 type Option = { id?: string; option_text: string; is_correct: boolean; };
-type FinalExamEditModalProps = { examId: string; isOpen: boolean; onClose: () => void; };
+type FinalExamEditModalProps = {
+  examId: string;
+  courseId: string; // La prop que ahora sí vamos a recibir
+  isOpen: boolean;
+  onClose: () => void;
+};
 
-// --- Componente con Lógica Corregida ---
-export default function FinalExamEditModal({ examId, isOpen, onClose }: FinalExamEditModalProps) {
+export default function FinalExamEditModal({ examId, courseId, isOpen, onClose }: FinalExamEditModalProps) {
   const supabase = createClient();
   
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const fetchQuestions = useCallback(async () => {
     if (!isOpen) return;
     setLoading(true);
     setError(null);
 
-    // CORRECCIÓN: Hacemos la cláusula 'order' explícita para evitar ambigüedad.
     const { data, error } = await supabase
       .from('questions')
       .select(`*, options (*)`)
       .eq('final_exam_id', examId)
-      .order('order', { ascending: true }); // Ordenamos por la columna 'order' de la tabla 'questions'
+      .order('order', { ascending: true });
 
     if (error) {
       setError('Error al cargar las preguntas del examen.');
-      console.error("Fetch Error:", error);
     } else {
       const sanitizedData = data.map(q => ({...q, question_type: q.question_type || 'single'})) as Question[];
       setQuestions(sanitizedData || []);
@@ -50,10 +53,11 @@ export default function FinalExamEditModal({ examId, isOpen, onClose }: FinalExa
   }, [isOpen, examId, supabase]);
 
   useEffect(() => {
-    fetchQuestions();
-  }, [fetchQuestions]);
+    if (isOpen) {
+        fetchQuestions();
+    }
+  }, [isOpen, fetchQuestions]);
 
-  // --- Manejadores (sin cambios) ---
   const handleQuestionChange = (index: number, field: keyof Question, value: any) => { const newQuestions = [...questions]; (newQuestions[index] as any)[field] = value; setQuestions(newQuestions); };
   const handleOptionTextChange = (qIndex: number, oIndex: number, text: string) => { const newQuestions = [...questions]; newQuestions[qIndex].options[oIndex].option_text = text; setQuestions(newQuestions); };
   const handleCorrectOptionChange = (qIndex: number, oIndex: number) => { const newQuestions = [...questions]; const question = newQuestions[qIndex]; if (question.question_type === 'single') { question.options.forEach((opt, idx) => { opt.is_correct = idx === oIndex; }); } else { question.options[oIndex].is_correct = !question.options[oIndex].is_correct; } setQuestions(newQuestions); };
@@ -62,14 +66,44 @@ export default function FinalExamEditModal({ examId, isOpen, onClose }: FinalExa
   const removeQuestion = (index: number) => { setQuestions(questions.filter((_, i) => i !== index).map((q, i) => ({ ...q, order: i + 1 }))); };
   const removeOption = (qIndex: number, oIndex: number) => { const newQuestions = [...questions]; newQuestions[qIndex].options = newQuestions[qIndex].options.filter((_, i) => i !== oIndex); setQuestions(newQuestions); };
 
-  // --- Lógica de Guardado (Adaptada para el examen) ---
+  const handleGenerateWithAI = async () => {
+    setIsGenerating(true);
+    setError(null);
+    try {
+      const { data: courseData, error: courseError } = await supabase.from('courses').select('title').eq('id', courseId).single();
+      if (courseError || !courseData?.title) {
+        throw new Error("No se pudo obtener el título del curso.");
+      }
+
+      const { data, error: functionError } = await supabase.functions.invoke('generate-final-exam', {
+          body: { courseTitle: courseData.title }
+      });
+
+      if (functionError) throw functionError;
+
+      // La IA devuelve un array de preguntas que usamos para actualizar el estado
+      // Lo enriquecemos con los campos que faltan
+      const enrichedQuestions = data.questions.map((q: any, index: number) => ({
+          ...q,
+          question_type: q.question_type || 'single',
+          order: q.order || index + 1,
+          final_exam_id: examId,
+      }));
+
+      setQuestions(enrichedQuestions);
+
+    } catch (err: any) {
+        setError(err.data?.error || err.message || "Ocurrió un error desconocido.");
+    } finally {
+        setIsGenerating(false);
+    }
+  };
+
   const handleSaveChanges = async () => {
     setSaving(true);
     setError(null);
     try {
-      // Preparamos los datos de las preguntas y opciones que vamos a guardar.
       const questionsToSave = questions.map((q, qIndex) => ({
-        // El quiz_id será null porque esta pregunta es de un examen final
         quiz_id: null, 
         final_exam_id: examId,
         question_text: q.question_text,
@@ -81,8 +115,6 @@ export default function FinalExamEditModal({ examId, isOpen, onClose }: FinalExa
         }))
       }));
 
-      // Usamos una función RPC para un guardado atómico y seguro
-      // Le pasamos el ID del examen y el JSON con las preguntas.
       const { error: rpcError } = await supabase.rpc('update_final_exam_questions', {
         exam_id_in: examId,
         questions_in: questionsToSave
@@ -93,7 +125,6 @@ export default function FinalExamEditModal({ examId, isOpen, onClose }: FinalExa
       onClose();
     } catch (err: any) {
       setError(err.message);
-      console.error("Save Error:", err);
     } finally {
       setSaving(false);
     }
@@ -105,8 +136,17 @@ export default function FinalExamEditModal({ examId, isOpen, onClose }: FinalExa
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
       <div className="bg-[#1A1A1A] text-white rounded-xl border border-gray-700 p-8 w-full max-w-4xl max-h-[90vh] flex flex-col">
         <h2 className="text-2xl font-bold mb-4">Editar Examen Final</h2>
+
+        <div className="mb-4">
+          <button onClick={handleGenerateWithAI} disabled={isGenerating} className="flex items-center gap-2 text-sm bg-purple-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-purple-700 disabled:opacity-50">
+            {isGenerating ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16} />}
+            {isGenerating ? 'Generando...' : 'Generar 10 Preguntas con IA'}
+          </button>
+        </div>
+
+        {error && <p className="text-red-400 bg-red-900/50 p-3 rounded-md mb-4">{error}</p>}
+
         <div className="flex-grow overflow-y-auto pr-4 space-y-6">
-          {/* ... (El JSX es idéntico al de la versión anterior) ... */}
           {loading ? (<p>Cargando preguntas...</p>) : (
             questions.map((q, qIndex) => (
               <div key={q.id || qIndex} className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">

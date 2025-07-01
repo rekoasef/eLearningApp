@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, BookCopy, Award, Shield, LogOut, Users, UserPlus } from 'lucide-react';
+import { LayoutDashboard, BookCopy, Award, Shield, LogOut, Users, UserPlus, BarChart } from 'lucide-react';
 
 // --- Tipos ---
 type NavLink = {
@@ -31,6 +31,7 @@ const navLinks: NavLink[] = [
 
 const adminLinks: NavLink[] = [
   { name: 'Gestión de Cursos', href: '/dashboard/admin/cursos', icon: Shield },
+  { name: 'Métricas', href: '/dashboard/admin/metricas', icon: BarChart },
   { name: 'Progreso de Equipo', href: '/dashboard/admin/progreso', icon: Users },
   { name: 'Gestión de Usuarios', href: '/dashboard/admin/usuarios', icon: UserPlus },
 ];
@@ -41,7 +42,7 @@ export default function DashboardSidebar() {
   const supabase = createClient();
 
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -55,9 +56,9 @@ export default function DashboardSidebar() {
         
         if (data) {
           setProfile(data as Profile);
-          setIsAdmin(data.role_id === 1 || data.role_id === 2);
         }
       }
+      setIsLoading(false);
     };
     fetchProfile();
   }, [supabase]);
@@ -80,6 +81,27 @@ export default function DashboardSidebar() {
       </Link>
     );
   };
+  
+  // --- RENDERIZADO CONDICIONAL PARA EVITAR HIDRATACIÓN ---
+  // Si está cargando, no renderizamos nada para que no haya conflicto.
+  if (isLoading) {
+    return (
+        <div className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 lg:z-50 bg-[#151515] border-r border-gray-800 p-4">
+            {/* Renderizamos un esqueleto para mantener la estructura */}
+            <div className="animate-pulse space-y-8">
+                <div className="h-8 bg-gray-700 rounded w-3/4"></div>
+                <div className="space-y-2">
+                    <div className="h-4 bg-gray-700 rounded"></div>
+                    <div className="h-4 bg-gray-700 rounded w-5/6"></div>
+                    <div className="h-4 bg-gray-700 rounded w-4/6"></div>
+                </div>
+            </div>
+        </div>
+    );
+  }
+
+  // Una vez que ya tenemos los datos, renderizamos el componente completo.
+  const isAdmin = profile?.role_id === 1 || profile?.role_id === 2;
 
   return (
     <div className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 lg:z-50 bg-[#151515] border-r border-gray-800 p-4">
@@ -107,7 +129,7 @@ export default function DashboardSidebar() {
 
             <li className="-mx-2 mt-auto">
               <div className="p-3 text-sm">
-                <p className="font-semibold text-white">{profile?.full_name || 'Cargando...'}</p>
+                <p className="font-semibold text-white">{profile?.full_name || 'Usuario'}</p>
                 <p className="text-gray-400">{profile?.sectors?.name || (isAdmin ? 'Superadministrador' : 'Sin sector')}</p>
               </div>
               <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white">

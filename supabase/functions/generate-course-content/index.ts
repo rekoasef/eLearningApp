@@ -2,15 +2,19 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
-// ¡YA NO SE IMPORTA NINGUNA LIBRERÍA DE PDF AQUÍ!
-
 const GEMINI_MODEL = 'gemini-1.5-flash';
 
+// Volvemos a definir los dos tipos de payloads que puede recibir la función
+interface GenerateDetailsPayload {
+  mode: 'details';
+  title: string;
+}
 interface GenerateQuizPayload {
   mode: 'quiz';
   quizId: string;
   courseContent: string;
 }
+type FunctionPayload = GenerateDetailsPayload | GenerateQuizPayload;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -18,15 +22,30 @@ serve(async (req) => {
   }
 
   try {
-    const payload: GenerateQuizPayload = await req.json(); // Simplificamos, solo esperamos quizzes
-    if (payload.mode !== 'quiz') throw new Error("Modo no válido.");
-
+    const payload: FunctionPayload = await req.json();
     const API_KEY = Deno.env.get('GEMINI_API_KEY');
     if (!API_KEY) throw new Error("La clave de API de Gemini no está configurada.");
 
-    if (!payload.courseContent) throw new Error("No se proporcionó contenido para generar el quiz.");
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${API_KEY}`;
+    
+    let prompt = '';
+    
+    // --- LÓGICA IF/ELSE REINTRODUCIDA ---
+    // Ahora la función vuelve a saber qué hacer en cada caso.
+    if (payload.mode === 'details') {
+      if (!payload.title) throw new Error("El título es obligatorio para generar detalles.");
+      prompt = `
+        Actúa como un experto diseñador de capacitaciones para una empresa de maquinaria agrícola líder llamada Crucianelli.
+        Tu tarea es crear el contenido para un nuevo curso de capacitación interna.
+        Nombre del Curso: "${payload.title}"
+        Basado en ese nombre, genera una "descripción" atractiva y profesional para el curso y un "temario" detallado en formato de lista.
+        Devuelve la respuesta EXCLUSIVAMENTE en formato JSON, con la siguiente estructura: {"description": "...", "syllabus": "..."}
+        El texto del "syllabus" debe usar saltos de línea con '\\n' para separar los módulos.`;
 
-    const prompt = `
+    } else if (payload.mode === 'quiz') {
+      if (!payload.courseContent) throw new Error("No se proporcionó contenido para generar el quiz.");
+      
+      prompt = `
         Actúa como un evaluador experto para una plataforma de e-learning de maquinaria agrícola.
         Tu tarea es crear un quiz de 5 preguntas basado en el siguiente contenido de un módulo de capacitación.
         Contenido del Módulo:
@@ -47,13 +66,14 @@ serve(async (req) => {
             ]
           }
         ]`;
+    } else {
+      throw new Error("Modo no válido proporcionado en el payload.");
+    }
 
-    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${API_KEY}`;
-    
     const geminiResponse = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
     });
 
     if (!geminiResponse.ok) {
@@ -67,23 +87,30 @@ serve(async (req) => {
     }
     const jsonString = geminiData.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
     const content = JSON.parse(jsonString);
-    
-    const questionsToSave = content.map((q: any, index: number) => ({
-      ...q,
-      question_type: 'single',
-      order: index + 1,
-    }));
 
-    const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    if (payload.mode === 'quiz') {
+      const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-    const { error: rpcError } = await supabaseAdmin.rpc('update_quiz_questions', {
-      quiz_id_in: payload.quizId,
-      questions_in: questionsToSave,
-    });
+      const questionsToSave = content.map((q: any, index: number) => ({
+        ...q,
+        question_type: 'single',
+        order: index + 1,
+      }));
 
-    if (rpcError) throw rpcError;
-    
-    return new Response(JSON.stringify({ success: true }), {
+      const { error: rpcError } = await supabaseAdmin.rpc('update_quiz_questions', {
+        quiz_id_in: payload.quizId,
+        questions_in: questionsToSave,
+      });
+
+      if (rpcError) throw rpcError;
+      
+      return new Response(JSON.stringify({ success: true, message: 'Quiz creado y guardado.' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
+      });
+    }
+
+    // Si el modo era 'details', simplemente devolvemos el contenido.
+    return new Response(JSON.stringify(content), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
     });
 

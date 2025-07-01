@@ -113,7 +113,7 @@ export default function EditCoursePage({ params }: { params: { courseId: string 
   
   return (
     <>
-      {finalExam && <FinalExamEditModal examId={finalExam.id} isOpen={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} />}
+      {finalExam && <FinalExamEditModal examId={finalExam.id} courseId={courseId} isOpen={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} />}
 
       <div className="text-gray-200 p-8">
         <div className="max-w-4xl mx-auto space-y-8">
