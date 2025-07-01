@@ -12,10 +12,12 @@ type Sector = {
   name: string;
 };
 
+// --- TIPO CORREGIDO ---
+// Ahora 'sectors' es un array de objetos, para coincidir con lo que devuelve Supabase.
 type AdminProfile = {
   role_id: number;
   sector_id: string | null;
-  sectors: { name: string } | null;
+  sectors: { name: string | null }[] | null; 
 };
 
 export default function NewCoursePage() {
@@ -40,6 +42,7 @@ export default function NewCoursePage() {
 
   useEffect(() => {
     const fetchInitialData = async () => {
+      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
@@ -54,7 +57,8 @@ export default function NewCoursePage() {
         setLoading(false);
         return;
       }
-      setUserProfile(profile as AdminProfile);
+      // Ya no necesitamos la aserción 'as AdminProfile' porque los tipos coincidirán
+      setUserProfile(profile); 
 
       if (profile.role_id === 1) {
         const { data: sectorsData, error: sectorsError } = await supabase.from('sectors').select('id, name');
@@ -128,16 +132,12 @@ export default function NewCoursePage() {
       setGenerationStatus('error');
     } finally {
       setIsGenerating(false);
-      setTimeout(() => setGenerationStatus(null), 4000); // El mensaje desaparece después de 4 segundos
+      setTimeout(() => setGenerationStatus(null), 4000);
     }
   };
   
   if (loading) {
-    return (
-      <div className="p-8 text-white flex items-center justify-center">
-        <p>Cargando formulario...</p>
-      </div>
-    );
+    return <div className="p-8 text-white flex items-center justify-center">Cargando...</div>;
   }
   
   return (
@@ -152,8 +152,7 @@ export default function NewCoursePage() {
             <label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-2">Título del Curso</label>
             <input
               id="title" value={title} onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md focus:ring-2 focus:ring-[#FF4500]"
-              required
+              className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md" required
             />
           </div>
 
@@ -170,8 +169,7 @@ export default function NewCoursePage() {
                   {isGenerating ? 'Generando...' : 'Generar con IA'}
                 </button>
             </div>
-             {/* --- MENSAJES DE ESTADO VISUALES --- */}
-            {generationStatus === 'success' && (
+             {generationStatus === 'success' && (
                 <div className="my-2 p-2 bg-green-900/50 text-green-300 text-sm rounded-md flex items-center gap-2">
                     <CheckCircle size={16} /> Contenido generado con éxito.
                 </div>
@@ -185,7 +183,7 @@ export default function NewCoursePage() {
               id="description" value={description} onChange={(e) => setDescription(e.target.value)}
               rows={10}
               placeholder="Escribe una descripción o usa la IA para generarla junto con un temario."
-              className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md focus:ring-2 focus:ring-[#FF4500]"
+              className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md"
             />
           </div>
 
@@ -194,9 +192,7 @@ export default function NewCoursePage() {
               <label htmlFor="sector" className="block text-sm font-medium text-gray-300 mb-2">Sector</label>
               <select
                 id="sector" value={sectorId} onChange={(e) => setSectorId(e.target.value)}
-                className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md focus:ring-2 focus:ring-[#FF4500]"
-                required
-              >
+                className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md" required>
                 <option value="" disabled>Selecciona un sector...</option>
                 {allSectors.map(sector => (
                   <option key={sector.id} value={sector.id}>{sector.name}</option>
@@ -207,7 +203,9 @@ export default function NewCoursePage() {
             <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Sector</label>
                 <div className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-700 rounded-md text-gray-400">
-                    {userProfile?.sectors?.name || 'Asignando a tu sector...'}
+                    {/* --- USO CORREGIDO --- */}
+                    {/* Accedemos al primer elemento del array para obtener el nombre. */}
+                    {userProfile?.sectors?.[0]?.name || 'Sector no asignado'}
                 </div>
             </div>
           )}
@@ -215,27 +213,17 @@ export default function NewCoursePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label htmlFor="startDate" className="block text-sm font-medium text-gray-300 mb-2">Fecha de Inicio (Opcional)</label>
-              <input
-                id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md focus:ring-2 focus:ring-[#FF4500] text-gray-300"
-              />
+              <input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md text-gray-300"/>
             </div>
              <div>
               <label htmlFor="endDate" className="block text-sm font-medium text-gray-300 mb-2">Fecha de Fin (Opcional)</label>
-              <input
-                id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md focus:ring-2 focus:ring-[#FF4500] text-gray-300"
-              />
+              <input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md text-gray-300"/>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
              <label htmlFor="isPublished" className="block text-sm font-medium text-gray-300">¿Publicar ahora?</label>
-             <button
-                type="button"
-                onClick={() => setIsPublished(!isPublished)}
-                className={`${isPublished ? 'bg-[#FF4500]' : 'bg-gray-600'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}
-              >
+             <button type="button" onClick={() => setIsPublished(!isPublished)} className={`${isPublished ? 'bg-[#FF4500]' : 'bg-gray-600'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}>
                 <span className={`${isPublished ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}/>
             </button>
           </div>
