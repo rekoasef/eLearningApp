@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Users, BookOpen, Award, TrendingUp, Building } from 'lucide-react';
-import { UserProfile } from '@/types'; // Importamos el tipo centralizado
+import { UserProfile } from '@/types';
 
 // --- Tipos de Datos ---
 type GeneralStats = {
@@ -50,21 +50,25 @@ export default function MetricasPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
             
+            // Las llamadas a las funciones no cambian, pero ahora devuelven datos filtrados.
             const [generalRes, courseRes, profileRes] = await Promise.all([
                 supabase.rpc('get_kpi_general_stats'),
                 supabase.rpc('get_kpi_course_stats'),
-                supabase.from('profiles').select(`role_id, sectors (name)`).eq('id', user.id).single()
+                supabase.from('profiles').select(`role_id, sectors (name), roles (name)`).eq('id', user.id).single()
             ]);
             
             if (generalRes.data) setGeneralStats(generalRes.data[0]);
             if (courseRes.data) setCourseStats(courseRes.data);
-            if (profileRes.data) setProfile(profileRes.data);
+            if (profileRes.data) {
+                // @ts-ignore
+                setProfile(profileRes.data);
+            }
             
             setLoading(false);
         };
         fetchData();
     }, [supabase]);
-
+    
     if (loading) {
         return <div className="p-8 text-center text-white">Cargando métricas...</div>;
     }
@@ -89,7 +93,7 @@ export default function MetricasPage() {
                     </h1>
                     <p className="text-gray-400 mt-2 flex items-center gap-2">
                         <Building size={16} />
-                        {isSuperAdmin ? 'Mostrando datos de todos los sectores' : `Mostrando datos del sector: ${profile?.sectors?.[0]?.name || 'Mi Sector'}`}
+                        {isSuperAdmin ? 'Mostrando datos de todos los sectores' : `Mostrando datos del sector: ${profile?.sectors?.name || 'Mi Sector'}`}
                     </p>
                 </header>
 

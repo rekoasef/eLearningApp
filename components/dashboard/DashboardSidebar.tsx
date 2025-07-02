@@ -16,12 +16,12 @@ type NavLink = {
   exact?: boolean;
 };
 
-// --- TIPO CORREGIDO ---
-// 'sectors' ahora es un array de objetos para coincidir con la respuesta de Supabase.
+// CORRECCIÓN: El tipo 'Profile' ahora espera un objeto para 'sectors' y 'roles'.
 type Profile = {
   role_id: number;
   full_name: string | null;
-  sectors: { name: string | null }[] | null;
+  sectors: { name: string | null } | null; // Objeto, no array
+  roles: { name: string | null } | null;   // Objeto, no array
 };
 
 // --- Definición de Links ---
@@ -50,15 +50,15 @@ export default function DashboardSidebar() {
     const fetchProfile = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        // CORRECCIÓN: Seleccionamos también el nombre del rol.
         const { data } = await supabase
           .from('profiles')
-          .select(`role_id, full_name, sectors (name)`)
+          .select(`role_id, full_name, sectors (name), roles (name)`)
           .eq('id', user.id)
           .single();
         
         if (data) {
-          // Ya no es necesaria la conversión forzada 'as Profile'
-          setProfile(data);
+          setProfile(data as Profile);
         }
       }
       setIsLoading(false);
@@ -130,8 +130,8 @@ export default function DashboardSidebar() {
               <div className="p-3 text-sm">
                 <p className="font-semibold text-white">{profile?.full_name || 'Usuario'}</p>
                 {/* --- USO CORREGIDO --- */}
-                {/* Accedemos al primer elemento del array para obtener el nombre. */}
-                <p className="text-gray-400">{profile?.sectors?.[0]?.name || (isAdmin ? 'Superadministrador' : 'Sin sector')}</p>
+                <p className="text-gray-400">{profile?.roles?.name || 'Rol no definido'}</p>
+                {profile?.sectors?.name && <p className="text-gray-400 text-xs">{profile.sectors.name}</p>}
               </div>
               <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white">
                 <LogOut className="h-5 w-5" />

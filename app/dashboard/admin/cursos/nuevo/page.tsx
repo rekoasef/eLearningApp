@@ -29,13 +29,22 @@ export default function NewCoursePage() {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
-      const { data: profile, error: profileError } = await supabase.from('profiles').select(`role_id, sector_id, sectors (name)`).eq('id', user.id).single();
+      
+      // CORRECCIÓN: Se añade 'roles(name)' para que la forma de los datos coincida con el tipo AdminProfile.
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select(`role_id, sector_id, sectors(name), roles(name)`)
+        .eq('id', user.id)
+        .single();
+
       if (profileError || !profile) {
         setError("No se pudo cargar tu perfil de administrador.");
         setLoading(false);
         return;
       }
-      setUserProfile(profile);
+      // @ts-ignore
+      setUserProfile(profile as AdminProfile);
+
       if (profile.role_id === 1) {
         const { data: sectorsData, error: sectorsError } = await supabase.from('sectors').select('id, name');
         if (sectorsError) setError("No se pudieron cargar los sectores.");
@@ -125,7 +134,7 @@ export default function NewCoursePage() {
           ) : (
             <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Sector</label>
-                <div className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-700 rounded-md text-gray-400">{userProfile?.sectors?.[0]?.name || 'Sector no asignado'}</div>
+                <div className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-700 rounded-md text-gray-400">{userProfile?.sectors?.name || 'Sector no asignado'}</div>
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

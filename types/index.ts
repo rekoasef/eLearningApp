@@ -13,19 +13,21 @@ export type Content = {
 
 /**
  * Representa el perfil de un usuario para componentes de administración.
- * La propiedad 'sectors' es un array porque así lo devuelve Supabase en las relaciones.
+ * CORRECCIÓN: 'sectors' y 'roles' son objetos, no arrays, para relaciones "uno a uno".
  */
 export type AdminProfile = {
   role_id: number;
   sector_id: string | null;
-  sectors: { name: string | null }[] | null;
+  sectors: { name: string | null } | null;
+  roles: { name: string | null } | null;
 };
 
 /**
  * Representa el perfil de un usuario para la página de métricas.
- * Es similar a AdminProfile pero lo mantenemos separado por claridad.
+ * CORRECCIÓN: 'sectors' y 'roles' son objetos, no arrays.
  */
 export type UserProfile = {
     role_id: number;
-    sectors: { name: string | null }[] | null;
+    sectors: { name: string | null } | null;
+    roles: { name: string | null } | null;
 };
