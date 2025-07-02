@@ -27,7 +27,7 @@ type CourseStat = {
 
 type UserProfile = {
   role_id: number;
-  sectors: { name: string | null } | null;
+  sectors: { name: string | null }[] | null;
 };
 
 const StatCard = ({ title, value, icon }: { title: string; value: string | number; icon: React.ReactNode }) => (
@@ -62,7 +62,7 @@ export default function MetricasPage() {
             
             if (generalRes.data) setGeneralStats(generalRes.data[0]);
             if (courseRes.data) setCourseStats(courseRes.data);
-            if (profileRes.data) setProfile(profileRes.data as UserProfile);
+            if (profileRes.data) setProfile(profileRes.data);
             
             setLoading(false);
         };
@@ -93,7 +93,7 @@ export default function MetricasPage() {
                     </h1>
                     <p className="text-gray-400 mt-2 flex items-center gap-2">
                         <Building size={16} />
-                        {isSuperAdmin ? 'Mostrando datos de todos los sectores' : `Mostrando datos del sector: ${profile?.sectors?.name || 'Mi Sector'}`}
+                        {isSuperAdmin ? 'Mostrando datos de todos los sectores' : `Mostrando datos del sector: ${profile?.sectors?.[0]?.name || 'Mi Sector'}`}
                     </p>
                 </header>
 
@@ -121,7 +121,19 @@ export default function MetricasPage() {
                         <h3 className="text-lg font-semibold text-white mb-4">Estado General de Inscripciones</h3>
                         <ResponsiveContainer width="100%" height={300}>
                             <PieChart>
-                                <Pie data={courseStatusData.filter(d => d.value > 0)} cx="50%" cy="50%" labelLine={false} outerRadius={80} fill="#8884d8" dataKey="value" nameKey="name" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                                <Pie 
+                                  data={courseStatusData.filter(d => d.value > 0)} 
+                                  cx="50%" 
+                                  cy="50%" 
+                                  labelLine={false} 
+                                  outerRadius={80} 
+                                  fill="#8884d8" 
+                                  dataKey="value" 
+                                  nameKey="name" 
+                                  // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+                                  // Verificamos que 'percent' sea un número antes de usarlo.
+                                  label={({ name, percent }) => percent && typeof percent === 'number' ? `${name} ${(percent * 100).toFixed(0)}%` : name}
+                                >
                                     {courseStatusData.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}

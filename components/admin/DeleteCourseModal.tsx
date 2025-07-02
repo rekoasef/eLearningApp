@@ -34,7 +34,7 @@ export default function DeleteCourseModal({
         <AlertTriangle size={64} className="mx-auto text-red-500 mb-4" />
         <h2 className="text-2xl font-bold mb-2">¿Estás absolutamente seguro?</h2>
         <p className="text-gray-400 mb-4">
-          Esta acción es irreversible. Se eliminará permanentemente el curso <strong className="text-white">"{courseTitle}"</strong>, incluyendo todos sus módulos, contenidos, quizzes, y el progreso de todos los usuarios.
+          Esta acción es irreversible. Se eliminará permanentemente el curso <strong className="text-white">{`"${courseTitle}"`}</strong>, incluyendo todos sus módulos, contenidos, quizzes, y el progreso de todos los usuarios.
         </p>
         
         <div className="my-6 text-left">

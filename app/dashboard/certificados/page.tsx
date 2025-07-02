@@ -1,4 +1,4 @@
-// Ruta: app/certificados/page.tsx
+// Ruta: app/dashboard/certificados/page.tsx
 
 'use client';
 
@@ -30,7 +30,7 @@ const CertificateCard = ({ certificate }: { certificate: Certificate }) => (
         <div className="w-16 h-16 bg-amber-800/50 rounded-lg flex items-center justify-center mb-5 group-hover:bg-amber-500/20 transition-colors">
             <Award size={32} className="text-amber-400" />
         </div>
-        <h4 className="text-xl font-bold text-white mb-2 flex-grow">{certificate.courses?.title}</h4>
+        <h4 className="text-xl font-bold text-white mb-2 flex-grow">{certificate.courses?.title || 'Curso sin Título'}</h4>
         <p className="text-sm text-gray-400 mb-5">
             Obtenido el: {new Date(certificate.completed_at).toLocaleDateString('es-AR')}
         </p>
@@ -54,9 +54,13 @@ export default function CertificatesPage() {
     const fetchCertificates = async () => {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push('/login'); return; }
+      if (!user) { 
+        router.push('/login'); 
+        return; 
+      }
 
-      setUserName(user.email?.split('@')[0] || 'Usuario');
+      const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
+      setUserName(profile?.full_name || user.email?.split('@')[0] || 'Usuario');
       
       const { data, error } = await supabase
         .from('certificates')
@@ -71,8 +75,18 @@ export default function CertificatesPage() {
 
       if (error) {
         console.error("Error al cargar los certificados:", error);
+      } else if (data) {
+        // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+        // Le decimos a TypeScript que cada 'item' es de tipo 'any' para que no se queje.
+        const formattedCertificates: Certificate[] = data.map((item: any) => ({
+          id: item.id,
+          pdf_url: item.pdf_url,
+          courses: item.courses,
+          completed_at: item.completed_at
+        }));
+        setCertificates(formattedCertificates);
       } else {
-        setCertificates(data || []);
+        setCertificates([]);
       }
       setLoading(false);
     };

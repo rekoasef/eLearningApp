@@ -16,10 +16,12 @@ type NavLink = {
   exact?: boolean;
 };
 
+// --- TIPO CORREGIDO ---
+// 'sectors' ahora es un array de objetos para coincidir con la respuesta de Supabase.
 type Profile = {
   role_id: number;
   full_name: string | null;
-  sectors: { name: string | null } | null;
+  sectors: { name: string | null }[] | null;
 };
 
 // --- Definición de Links ---
@@ -55,7 +57,8 @@ export default function DashboardSidebar() {
           .single();
         
         if (data) {
-          setProfile(data as Profile);
+          // Ya no es necesaria la conversión forzada 'as Profile'
+          setProfile(data);
         }
       }
       setIsLoading(false);
@@ -82,12 +85,9 @@ export default function DashboardSidebar() {
     );
   };
   
-  // --- RENDERIZADO CONDICIONAL PARA EVITAR HIDRATACIÓN ---
-  // Si está cargando, no renderizamos nada para que no haya conflicto.
   if (isLoading) {
     return (
         <div className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 lg:z-50 bg-[#151515] border-r border-gray-800 p-4">
-            {/* Renderizamos un esqueleto para mantener la estructura */}
             <div className="animate-pulse space-y-8">
                 <div className="h-8 bg-gray-700 rounded w-3/4"></div>
                 <div className="space-y-2">
@@ -100,7 +100,6 @@ export default function DashboardSidebar() {
     );
   }
 
-  // Una vez que ya tenemos los datos, renderizamos el componente completo.
   const isAdmin = profile?.role_id === 1 || profile?.role_id === 2;
 
   return (
@@ -130,7 +129,9 @@ export default function DashboardSidebar() {
             <li className="-mx-2 mt-auto">
               <div className="p-3 text-sm">
                 <p className="font-semibold text-white">{profile?.full_name || 'Usuario'}</p>
-                <p className="text-gray-400">{profile?.sectors?.name || (isAdmin ? 'Superadministrador' : 'Sin sector')}</p>
+                {/* --- USO CORREGIDO --- */}
+                {/* Accedemos al primer elemento del array para obtener el nombre. */}
+                <p className="text-gray-400">{profile?.sectors?.[0]?.name || (isAdmin ? 'Superadministrador' : 'Sin sector')}</p>
               </div>
               <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white">
                 <LogOut className="h-5 w-5" />
