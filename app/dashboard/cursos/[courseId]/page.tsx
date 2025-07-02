@@ -104,11 +104,17 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
       </div>
     );
     
-    const Wrapper = isUnlocked ? Link : 'div';
-    // RUTA CORREGIDA: Apunta a la nueva estructura de dashboard
-    const props = isUnlocked ? { href: `/dashboard/cursos/${courseId}/leccion/${lesson.id}` } : {};
+    // --- CORRECCIÓN DEFINITIVA ---
+    // Usamos renderizado condicional en lugar de un Wrapper dinámico para evitar el error de tipos.
+    if (isUnlocked) {
+      return (
+        <Link href={`/dashboard/cursos/${courseId}/leccion/${lesson.id}`}>
+          {content}
+        </Link>
+      );
+    }
 
-    return <Wrapper {...props}>{content}</Wrapper>;
+    return <div>{content}</div>;
   };
 
   if (loading) {
