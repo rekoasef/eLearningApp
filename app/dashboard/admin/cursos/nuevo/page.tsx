@@ -13,7 +13,8 @@ type Sector = {
 };
 
 // --- TIPO CORREGIDO ---
-// Ahora 'sectors' es un array de objetos, para coincidir con lo que devuelve Supabase.
+// Ahora 'sectors' es un array de objetos, o puede ser null,
+// para coincidir exactamente con lo que devuelve Supabase.
 type AdminProfile = {
   role_id: number;
   sector_id: string | null;
@@ -42,7 +43,6 @@ export default function NewCoursePage() {
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
@@ -57,8 +57,8 @@ export default function NewCoursePage() {
         setLoading(false);
         return;
       }
-      // Ya no necesitamos la aserción 'as AdminProfile' porque los tipos coincidirán
-      setUserProfile(profile); 
+      // Ya no es necesaria la conversión forzada `as AdminProfile` porque el tipo es correcto
+      setUserProfile(profile);
 
       if (profile.role_id === 1) {
         const { data: sectorsData, error: sectorsError } = await supabase.from('sectors').select('id, name');
@@ -204,7 +204,7 @@ export default function NewCoursePage() {
                 <label className="block text-sm font-medium text-gray-300 mb-2">Sector</label>
                 <div className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-700 rounded-md text-gray-400">
                     {/* --- USO CORREGIDO --- */}
-                    {/* Accedemos al primer elemento del array para obtener el nombre. */}
+                    {/* Accedemos al primer (y único) elemento del array para obtener el nombre. */}
                     {userProfile?.sectors?.[0]?.name || 'Sector no asignado'}
                 </div>
             </div>
