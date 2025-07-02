@@ -58,6 +58,7 @@ export default function DashboardSidebar() {
           .single();
         
         if (data) {
+        // @ts-ignore
           setProfile(data as Profile);
         }
       }
