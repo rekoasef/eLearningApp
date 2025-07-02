@@ -7,7 +7,6 @@ import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { User, Edit, Trash2, UserPlus } from 'lucide-react';
 
-// --- Tipos ---
 type ManagedUser = {
     id: string;
     full_name: string | null;
@@ -43,11 +42,26 @@ export default function ManageUsersPage() {
                 const { error } = await supabase.functions.invoke('delete-user', { 
                     body: { user_id_to_delete: userId }
                 });
+
                 if (error) throw error;
-                // Refrescamos la lista de usuarios tras el borrado
+                
                 fetchManagedUsers();
+
             } catch (err: any) {
-                alert("Error al eliminar el usuario: " + err.message);
+                // --- CORRECCIÓN CLAVE ---
+                // Intentamos leer el cuerpo del error para un mensaje más claro.
+                let errorMessage = "La función devolvió un error inesperado.";
+                if (err.context && typeof err.context.json === 'function') {
+                    try {
+                        const errorBody = await err.context.json();
+                        errorMessage = errorBody.error || err.message;
+                    } catch (e) {
+                        errorMessage = err.message;
+                    }
+                } else {
+                    errorMessage = err.message;
+                }
+                alert("Error al eliminar el usuario: " + errorMessage);
             }
         }
     };
