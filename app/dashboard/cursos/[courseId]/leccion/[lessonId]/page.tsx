@@ -1,4 +1,4 @@
-// Ruta: app/dashboard/admin/cursos/editar/[courseId]/leccion/[lessonId]/page.tsx
+// Ruta: app/dashboard/cursos/[courseId]/leccion/[lessonId]/page.tsx
 
 'use client';
 
@@ -7,27 +7,22 @@ import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Film, FileText, Edit, Trash2, PlusCircle, Sparkles, Loader2 } from 'lucide-react';
-
-// Importamos la librería correcta para leer PDFs en el navegador
 import * as pdfjsLib from 'pdfjs-dist';
 
 import AddContentModal from '@/components/admin/AddContentModal';
 import EditContentModal from '@/components/admin/EditContentModal';
 import QuizEditModal from '@/components/admin/QuizEditModal';
+import { Content } from '@/types'; // Importando el tipo centralizado
 
-// Configuración ESENCIAL para que 'pdfjs-dist' funcione en Next.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
-// --- Tipos ---
 type LessonDetails = { id: string; title: string; course_id: string; };
-type Content = { id: string; lesson_id: string; content_type: 'video' | 'pdf'; title: string; url: string; };
 type Quiz = { id: string; lesson_id: string; };
 
 export default function LessonEditPage({ params }: { params: { courseId: string, lessonId: string } }) {
   const supabase = createClient();
   const { courseId, lessonId } = params;
 
-  // --- Estados ---
   const [lesson, setLesson] = useState<LessonDetails | null>(null);
   const [contents, setContents] = useState<Content[]>([]);
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -55,9 +50,17 @@ export default function LessonEditPage({ params }: { params: { courseId: string,
 
   useEffect(() => { fetchLessonData(); }, [fetchLessonData]);
   
-  const handleContentAdded = () => { fetchLessonData(); setIsAddContentModalOpen(false); };
+  // CORRECCIÓN: La función ahora acepta el nuevo contenido, aunque no lo use, para cumplir con el tipo.
+  const handleContentAdded = (newContent: Content) => { 
+    fetchLessonData(); 
+    setIsAddContentModalOpen(false); 
+  };
+  
   const handleOpenEditModal = (content: Content) => { setSelectedContent(content); setIsEditContentModalOpen(true); };
-  const handleContentUpdated = (updatedContent: Content) => setContents(prev => prev.map(c => c.id === updatedContent.id ? updatedContent : c));
+  const handleContentUpdated = (updatedContent: Content) => {
+      setContents(prev => prev.map(c => c.id === updatedContent.id ? updatedContent : c));
+      setIsEditContentModalOpen(false);
+  };
   
   const handleDeleteContent = async (contentId: string) => {
     if (window.confirm("¿Estás seguro de que querés borrar este contenido?")) {
@@ -146,8 +149,20 @@ export default function LessonEditPage({ params }: { params: { courseId: string,
 
   return (
     <>
-      <AddContentModal lessonId={lessonId} courseId={courseId} isOpen={isAddContentModalOpen} onClose={handleContentAdded} />
-      <EditContentModal content={selectedContent} isOpen={isEditContentModalOpen} onClose={() => setIsEditContentModalOpen(false)} onContentUpdated={handleContentUpdated} />
+      {/* CORRECCIÓN: Se han añadido las propiedades 'onContentAdded' y 'onClose' correctamente */}
+      <AddContentModal 
+        lessonId={lessonId} 
+        courseId={courseId} 
+        isOpen={isAddContentModalOpen} 
+        onClose={() => setIsAddContentModalOpen(false)}
+        onContentAdded={handleContentAdded} 
+      />
+      <EditContentModal 
+        content={selectedContent} 
+        isOpen={isEditContentModalOpen} 
+        onClose={() => setIsEditContentModalOpen(false)} 
+        onContentUpdated={handleContentUpdated} 
+      />
       {quiz && <QuizEditModal quizId={quiz.id} isOpen={isQuizModalOpen} onClose={() => setIsQuizModalOpen(false)} />}
 
       <div className="text-gray-200 p-8">

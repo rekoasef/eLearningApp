@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Users, BookOpen, Award, TrendingUp, Building } from 'lucide-react';
+import { UserProfile } from '@/types'; // Importamos el tipo centralizado
 
 // --- Tipos de Datos ---
 type GeneralStats = {
@@ -23,11 +24,6 @@ type CourseStat = {
   in_progress_users: number;
   completion_rate: number;
   sector_name: string | null;
-};
-
-type UserProfile = {
-  role_id: number;
-  sectors: { name: string | null }[] | null;
 };
 
 const StatCard = ({ title, value, icon }: { title: string; value: string | number; icon: React.ReactNode }) => (
@@ -130,8 +126,6 @@ export default function MetricasPage() {
                                   fill="#8884d8" 
                                   dataKey="value" 
                                   nameKey="name" 
-                                  // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-                                  // Verificamos que 'percent' sea un número antes de usarlo.
                                   label={({ name, percent }) => percent && typeof percent === 'number' ? `${name} ${(percent * 100).toFixed(0)}%` : name}
                                 >
                                     {courseStatusData.map((entry, index) => (

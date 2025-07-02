@@ -1,4 +1,4 @@
-// Ruta: app/dashboard/admin/cursos/nuevo/page.tsx
+// Ruta: app/dashboard/admin/cursos/page.tsx
 
 'use client';
 
@@ -6,19 +6,11 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { Save, Sparkles, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { AdminProfile } from '@/types'; // Importamos el tipo centralizado
 
 type Sector = {
   id: string;
   name: string;
-};
-
-// --- TIPO CORREGIDO ---
-// Ahora 'sectors' es un array de objetos, o puede ser null,
-// para coincidir exactamente con lo que devuelve Supabase.
-type AdminProfile = {
-  role_id: number;
-  sector_id: string | null;
-  sectors: { name: string | null }[] | null; 
 };
 
 export default function NewCoursePage() {
@@ -57,7 +49,6 @@ export default function NewCoursePage() {
         setLoading(false);
         return;
       }
-      // Ya no es necesaria la conversión forzada `as AdminProfile` porque el tipo es correcto
       setUserProfile(profile);
 
       if (profile.role_id === 1) {
@@ -203,8 +194,6 @@ export default function NewCoursePage() {
             <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Sector</label>
                 <div className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-700 rounded-md text-gray-400">
-                    {/* --- USO CORREGIDO --- */}
-                    {/* Accedemos al primer (y único) elemento del array para obtener el nombre. */}
                     {userProfile?.sectors?.[0]?.name || 'Sector no asignado'}
                 </div>
             </div>
