@@ -18,7 +18,7 @@ export type Content = {
 export type AdminProfile = {
   role_id: number;
   sector_id: string | null;
-  sectors: { name: string | null }[] | null; 
+  sectors: { name: string | null }[] | null;
 };
 
 /**

@@ -18,7 +18,7 @@ type Question = {
 type Option = { id?: string; option_text: string; is_correct: boolean; };
 type FinalExamEditModalProps = {
   examId: string;
-  courseId: string; // La prop que ahora sí vamos a recibir
+  courseId: string;
   isOpen: boolean;
   onClose: () => void;
 };
@@ -81,8 +81,6 @@ export default function FinalExamEditModal({ examId, courseId, isOpen, onClose }
 
       if (functionError) throw functionError;
 
-      // La IA devuelve un array de preguntas que usamos para actualizar el estado
-      // Lo enriquecemos con los campos que faltan
       const enrichedQuestions = data.questions.map((q: any, index: number) => ({
           ...q,
           question_type: q.question_type || 'single',

@@ -5,13 +5,14 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Upload } from 'lucide-react';
+import { Content } from '@/types'; // Importamos el tipo centralizado
 
 type AddContentModalProps = {
   lessonId: string;
   courseId: string;
   isOpen: boolean;
   onClose: () => void;
-  onContentAdded: (newContent: any) => void;
+  onContentAdded: (newContent: Content) => void; // Usamos el tipo 'Content'
 };
 
 export default function AddContentModal({ lessonId, courseId, isOpen, onClose, onContentAdded }: AddContentModalProps) {
@@ -50,7 +51,6 @@ export default function AddContentModal({ lessonId, courseId, isOpen, onClose, o
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Verificación de que el lessonId existe
     if (!lessonId) {
         setError("Error: No se ha proporcionado un ID de lección válido.");
         return;
@@ -69,16 +69,17 @@ export default function AddContentModal({ lessonId, courseId, isOpen, onClose, o
       }
       const filePath = `courses/${courseId}/${lessonId}/${Date.now()}-${pdfFile.name}`;
       const { error: uploadError } = await supabase.storage.from('course-materials').upload(filePath, pdfFile);
+      
       if (uploadError) {
         setError(`Error al subir el PDF: ${uploadError.message}`);
         setIsUploading(false);
         return;
       }
+      
       const { data: urlData } = supabase.storage.from('course-materials').getPublicUrl(filePath);
       contentUrl = urlData.publicUrl;
     }
 
-    // Aseguramos que la inserción contiene el lesson_id
     const contentToInsert = {
       lesson_id: lessonId,
       content_type: contentType,

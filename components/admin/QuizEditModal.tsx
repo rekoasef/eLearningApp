@@ -30,13 +30,11 @@ export default function QuizEditModal({ quizId, isOpen, onClose }: QuizEditModal
     if (!isOpen) return;
     setLoading(true);
 
-    // --- AQUÍ LA CORRECCIÓN ---
-    // Simplificamos la cláusula de ordenamiento para que sea inequívoca.
     const { data, error } = await supabase
       .from('questions')
       .select(`*, options (*)`)
       .eq('quiz_id', quizId)
-      .order('order', { ascending: true }); // Ordenamos directamente por la columna 'order'
+      .order('order', { ascending: true });
 
     if (error) {
       setError('Error al cargar las preguntas.');
@@ -49,18 +47,15 @@ export default function QuizEditModal({ quizId, isOpen, onClose }: QuizEditModal
 
   useEffect(() => { fetchQuestions(); }, [fetchQuestions]);
 
-  // ----- MANEJADORES DE CAMBIOS (sin cambios) -----
   const handleQuestionChange = (index: number, field: keyof Question, value: any) => { const newQuestions = [...questions]; (newQuestions[index] as any)[field] = value; setQuestions(newQuestions); };
   const handleOptionTextChange = (qIndex: number, oIndex: number, text: string) => { const newQuestions = [...questions]; newQuestions[qIndex].options[oIndex].option_text = text; setQuestions(newQuestions); };
   const handleCorrectOptionChange = (qIndex: number, oIndex: number) => { const newQuestions = [...questions]; const question = newQuestions[qIndex]; if (question.question_type === 'single') { question.options.forEach((opt, idx) => { opt.is_correct = idx === oIndex; }); } else { question.options[oIndex].is_correct = !question.options[oIndex].is_correct; } setQuestions(newQuestions); };
   
-  // ----- MANEJADORES DE ESTRUCTURA (sin cambios) -----
   const addQuestion = () => { if (questions.length >= 5) { alert("Solo se permiten 5 preguntas por quiz."); return; } const newQuestion: Question = { id: `new-${Date.now()}`, quiz_id: quizId, question_text: '', question_type: 'single', order: questions.length + 1, options: [], }; setQuestions([...questions, newQuestion]); };
   const addOption = (qIndex: number) => { const newQuestions = [...questions]; newQuestions[qIndex].options.push({ id: `new-opt-${Date.now()}`, option_text: '', is_correct: false }); setQuestions(newQuestions); };
   const removeQuestion = (index: number) => { setQuestions(questions.filter((_, i) => i !== index).map((q, i) => ({ ...q, order: i + 1 }))); };
   const removeOption = (qIndex: number, oIndex: number) => { const newQuestions = [...questions]; newQuestions[qIndex].options = newQuestions[qIndex].options.filter((_, i) => i !== oIndex); setQuestions(newQuestions); };
   
-  // ----- LÓGICA DE GUARDADO (sin cambios) -----
   const handleSaveChanges = async () => {
     setSaving(true);
     setError(null);

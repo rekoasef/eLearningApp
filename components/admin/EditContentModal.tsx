@@ -4,11 +4,8 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-// --- ¡CAMBIO IMPORTANTE! ---
-import { Content } from '@/types';
+import { Content } from '@/types'; // ¡CAMBIO IMPORTANTE!
 
-// Tipos
-// Ya no definimos 'Content' aquí.
 type EditContentModalProps = {
   content: Content | null;
   isOpen: boolean;
@@ -18,7 +15,6 @@ type EditContentModalProps = {
 
 export default function EditContentModal({ content, isOpen, onClose, onContentUpdated }: EditContentModalProps) {
   const supabase = createClient();
-
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [saving, setSaving] = useState(false);
@@ -53,7 +49,7 @@ export default function EditContentModal({ content, isOpen, onClose, onContentUp
       return;
     }
 
-    onContentUpdated(updatedContent as Content); // Hacemos un casting para asegurar el tipo
+    onContentUpdated(updatedContent as Content);
     setSaving(false);
     onClose();
   };

@@ -26,15 +26,12 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // --- CAMBIO CLAVE: Usamos 'inviteUserByEmail' ---
-    // Esto crea el usuario y envía automáticamente un email de invitación.
     const { data, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email,
-      { data: { full_name: full_name } } // Pasamos el nombre como metadatos
+      { data: { full_name: full_name } }
     );
     
     if (inviteError) {
-      // Manejamos el caso de que el usuario ya exista
       if (inviteError.message.includes('User already registered')) {
          throw new Error('Un usuario con este correo electrónico ya existe.');
       }
@@ -44,18 +41,16 @@ Deno.serve(async (req) => {
     const newUser = data.user;
     if (!newUser) throw new Error("El usuario no se pudo crear correctamente.");
 
-    // Ahora actualizamos el perfil con el rol y sector, ya que el trigger se encarga de crearlo.
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({
         sector_id: sector_id,
         role_id: role_id,
-        full_name: full_name // Aseguramos que el nombre también se guarde en el perfil
+        full_name: full_name
       })
       .eq('id', newUser.id);
 
     if (profileError) {
-      // Si falla la actualización del perfil, borramos el usuario creado para no dejar datos inconsistentes.
       await supabaseAdmin.auth.admin.deleteUser(newUser.id);
       throw new Error(`Error al actualizar el perfil: ${profileError.message}`);
     }

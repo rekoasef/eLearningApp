@@ -9,11 +9,7 @@ interface CertificatePayload {
   courseId: string;
 }
 
-// --- URL DE TU PLANTILLA ---
-// PEGA AQUÍ LA URL PÚBLICA QUE COPIASTE DE SUPABASE STORAGE
 const BACKGROUND_IMAGE_URL = 'https://sjiylmcirkaxipdkpaar.supabase.co/storage/v1/object/public/certificate-assets//certificate-template.png'; 
-// Ejemplo: 'https://<tu-proyecto-id>.supabase.co/storage/v1/object/public/certificate-assets/certificate-template.png'
-
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -26,7 +22,6 @@ Deno.serve(async (req) => {
 
     const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-    // --- Obtener datos (en paralelo para más eficiencia) ---
     const [
       { data: profileData, error: profileError },
       { data: courseData, error: courseError },
@@ -45,11 +40,9 @@ Deno.serve(async (req) => {
     const courseTitle = courseData.title;
     const completionDate = new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' });
 
-    // --- Crear el PDF ---
     const pdfDoc = await PDFDocument.create();
     const backgroundImage = await pdfDoc.embedPng(imageBytes);
 
-    // Añadimos la página con el tamaño de la imagen de fondo para que coincida perfectamente
     const page = pdfDoc.addPage([backgroundImage.width, backgroundImage.height]);
     
     page.drawImage(backgroundImage, {
@@ -59,24 +52,18 @@ Deno.serve(async (req) => {
         height: page.getHeight(),
     });
 
-    // Incrustamos las fuentes estándar (no necesitamos subir archivos de fuente)
     const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    // --- Escribir el texto sobre la plantilla ---
-    // Las coordenadas (x, y) están ajustadas para este diseño.
-    
-    // Nombre del Usuario (grande y centrado)
     const userNameWidth = helveticaBoldFont.widthOfTextAtSize(userName, 55);
     page.drawText(userName, {
         x: page.getWidth() / 2 - userNameWidth / 2,
         y: 420,
         font: helveticaBoldFont,
         size: 55,
-        color: rgb(0.1, 0.1, 0.1), // Un gris oscuro, no negro puro
+        color: rgb(0.1, 0.1, 0.1),
     });
 
-    // Texto "ha completado satisfactoriamente la capacitación de:"
      page.drawText('ha completado satisfactoriamente la capacitación de:', {
         x: page.getWidth() / 2 - helveticaFont.widthOfTextAtSize('ha completado satisfactoriamente la capacitación de:', 20) / 2,
         y: 380,
@@ -85,17 +72,15 @@ Deno.serve(async (req) => {
         color: rgb(0.3, 0.3, 0.3),
     });
 
-    // Título del Curso (centrado)
     const courseTitleWidth = helveticaBoldFont.widthOfTextAtSize(courseTitle, 35);
     page.drawText(courseTitle, {
         x: page.getWidth() / 2 - courseTitleWidth / 2,
         y: 320,
         font: helveticaBoldFont,
         size: 35,
-        color: rgb(0.99, 0.27, 0.0), // Naranja de Crucianelli: #FF4500
+        color: rgb(0.99, 0.27, 0.0),
     });
 
-    // Fecha de finalización (abajo a la izquierda)
     page.drawText(`Finalizado el ${completionDate}`, {
         x: 130,
         y: 195,
@@ -104,8 +89,6 @@ Deno.serve(async (req) => {
         color: rgb(0.2, 0.2, 0.2),
     });
 
-
-    // --- Guardar y subir el nuevo PDF ---
     const pdfBytes = await pdfDoc.save();
     const filePath = `certificates/${userId}/${courseId}-${Date.now()}.pdf`;
 
