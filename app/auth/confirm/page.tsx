@@ -85,20 +85,17 @@ const ConfirmPage: NextPage = () => {
     const [errorMessage, setErrorMessage] = useState('Verificando invitación...');
 
     useEffect(() => {
-        // CORRECCIÓN: Revisamos si la URL ya viene con un error.
         const hash = window.location.hash;
-        const urlParams = new URLSearchParams(hash.substring(1)); // Quita el '#' inicial
-        const errorDescription = urlParams.get('error_description');
-
-        if (errorDescription) {
-            setErrorMessage("El enlace de invitación es inválido o ha expirado. Por favor, contacta a un administrador.");
+        if (hash.includes('error_description')) {
+            setErrorMessage("El enlace es inválido o ha expirado. Contacta a un administrador.");
             setStatus('error');
             return;
         }
 
-        // Si no hay error en la URL, escuchamos el evento de Supabase
+        // CORRECCIÓN: Escuchamos el evento correcto 'PASSWORD_RECOVERY'.
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-          if (event === 'SIGNED_IN' && session) {
+          if (event === 'PASSWORD_RECOVERY' && session) {
+            // Este evento confirma que el usuario ha entrado en el flujo de recuperación.
             setStatus('ready');
           }
         });
