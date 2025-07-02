@@ -209,7 +209,8 @@ export default function NewCoursePage() {
                 </div>
             </div>
           )}
-          
+
+          {/* ---hola --- */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label htmlFor="startDate" className="block text-sm font-medium text-gray-300 mb-2">Fecha de Inicio (Opcional)</label>
