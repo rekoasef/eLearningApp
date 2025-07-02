@@ -9,8 +9,19 @@ import Link from 'next/link';
 import { ArrowLeft, PlayCircle, Lock, CheckCircle, ShieldCheck, Award, Eye, XCircle, CalendarOff, Bell } from 'lucide-react';
 
 // --- Tipos ---
-type CourseDetails = { id: string; title: string; description: string | null; lessons: Lesson[]; start_date: string | null; end_date: string | null; };
-type Lesson = { id: string; title: string; order: number; };
+type CourseDetails = { 
+  id: string; 
+  title: string; 
+  description: string | null; 
+  lessons: Lesson[]; 
+  start_date: string | null; 
+  end_date: string | null; 
+};
+type Lesson = { 
+  id: string; 
+  title: string; 
+  order: number; 
+};
 type FinalExam = { id: string; };
 type CourseProgress = { status: 'in_progress' | 'completed' | 'failed'; exam_attempts: number; } | null;
 type Certificate = { pdf_url: string; } | null;
@@ -45,8 +56,27 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push('/login'); return; }
 
-    const { data: courseData, error: courseError } = await supabase.from('courses').select('*').eq('id', courseId).single();
+    // CORRECCIÓN: Se especifica la consulta para traer todos los datos necesarios
+    // y evitar problemas con las políticas de seguridad (RLS) de Supabase.
+    const { data: courseData, error: courseError } = await supabase
+      .from('courses')
+      .select(`
+        id, 
+        title, 
+        description, 
+        start_date, 
+        end_date,
+        lessons (
+          id,
+          title,
+          order
+        )
+      `)
+      .eq('id', courseId)
+      .single();
+
     if (courseError || !courseData) {
+        // Si la consulta falla, redirige al dashboard, causando el efecto "recarga".
         router.push('/dashboard');
         return;
     }
@@ -60,10 +90,10 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
         return;
     }
 
-    const { data: lessonsData, error: lessonsError } = await supabase.from('lessons').select('*').eq('course_id', courseId).order('order', { ascending: true });
-    setCourse({ ...courseData, lessons: lessonsError ? [] : (lessonsData || []) });
+    const sortedLessons = courseData.lessons.sort((a,b) => a.order - b.order);
+    setCourse({ ...courseData, lessons: sortedLessons });
 
-    const lessonIds = lessonsData?.map(l => l.id) || [];
+    const lessonIds = sortedLessons?.map(l => l.id) || [];
     if (lessonIds.length > 0) {
       const { data: progressData } = await supabase.from('lesson_progress').select('lesson_id').eq('user_id', user.id).in('lesson_id', lessonIds).eq('is_completed', true);
       if (progressData) { setCompletedLessonIds(new Set(progressData.map(p => p.lesson_id))); }
@@ -104,8 +134,6 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
       </div>
     );
     
-    // --- CORRECCIÓN DEFINITIVA ---
-    // Usamos renderizado condicional en lugar de un Wrapper dinámico para evitar el error de tipos.
     if (isUnlocked) {
       return (
         <Link href={`/dashboard/cursos/${courseId}/leccion/${lesson.id}`}>

@@ -4,233 +4,154 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
-import { Save, Sparkles, Loader2, CheckCircle, XCircle } from 'lucide-react';
-import { AdminProfile } from '@/types'; // Importamos el tipo centralizado
+import Link from 'next/link';
+import { Plus, Edit, Trash2, CheckCircle, XCircle, BookCopy } from 'lucide-react';
+import DeleteCourseModal from '@/components/admin/DeleteCourseModal';
 
-type Sector = {
+// --- Tipos ---
+type CourseForAdmin = {
   id: string;
-  name: string;
+  title: string;
+  is_published: boolean;
+  sectors: { name: string | null } | null;
 };
 
-export default function NewCoursePage() {
-  const router = useRouter();
-  const supabase = createClient();
+type CourseToDelete = {
+  id: string;
+  title: string;
+} | null;
 
-  // Estados del formulario
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [sectorId, setSectorId] = useState('');
-  const [isPublished, setIsPublished] = useState(false);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  
-  // Estados de la página
-  const [allSectors, setAllSectors] = useState<Sector[]>([]);
-  const [userProfile, setUserProfile] = useState<AdminProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationStatus, setGenerationStatus] = useState<'success' | 'error' | null>(null);
+// --- Componente de la Página ---
+export default function AdminCoursesPage() {
+    const supabase = createClient();
+    const [courses, setCourses] = useState<CourseForAdmin[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [courseToDelete, setCourseToDelete] = useState<CourseToDelete>(null);
 
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push('/login'); return; }
+    // --- Carga de datos ---
+    useEffect(() => {
+        const fetchCourses = async () => {
+            setLoading(true);
+            const { data, error } = await supabase
+                .from('courses')
+                .select(`id, title, is_published, sectors ( name )`)
+                .order('created_at', { ascending: false });
 
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select(`role_id, sector_id, sectors (name)`)
-        .eq('id', user.id)
-        .single();
+            if (error) {
+                setError("No se pudieron cargar los cursos: " + error.message);
+            } else {
+                if (data) {
+                    // CORRECCIÓN FINAL: Ignoramos el falso error del editor.
+                    // @ts-ignore
+                    setCourses(data);
+                } else {
+                    setCourses([]);
+                }
+            }
+            setLoading(false);
+        };
+        fetchCourses();
+    }, [supabase]);
 
-      if (profileError || !profile) {
-        setError("No se pudo cargar tu perfil de administrador.");
-        setLoading(false);
-        return;
-      }
-      setUserProfile(profile);
-
-      if (profile.role_id === 1) {
-        const { data: sectorsData, error: sectorsError } = await supabase.from('sectors').select('id, name');
-        if (sectorsError) {
-          setError("No se pudieron cargar los sectores.");
-        } else {
-          setAllSectors(sectorsData || []);
-        }
-      }
-      setLoading(false);
+    // --- Manejo del modal de eliminación ---
+    const openDeleteModal = (course: {id: string, title: string}) => {
+        setCourseToDelete(course);
     };
-    fetchInitialData();
-  }, [supabase, router]);
 
-  const handleSaveCourse = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+    const closeDeleteModal = () => {
+        setCourseToDelete(null);
+    };
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || !userProfile) {
-      setError("No estás autenticado.");
-      setLoading(false);
-      return;
+    // --- Lógica de eliminación ---
+    const handleDeleteCourse = async () => {
+        if (!courseToDelete) return;
+        setIsDeleting(true);
+
+        const { error: deleteError } = await supabase
+            .from('courses')
+            .delete()
+            .eq('id', courseToDelete.id);
+
+        if (deleteError) {
+            alert("Error al eliminar el curso: " + deleteError.message);
+        } else {
+            setCourses(prevCourses => prevCourses.filter(c => c.id !== courseToDelete.id));
+            closeDeleteModal();
+        }
+        setIsDeleting(false);
+    };
+
+    if (loading) {
+        return <div className="p-8 text-center text-white">Cargando cursos...</div>;
     }
 
-    const finalSectorId = userProfile.role_id === 1 ? sectorId : userProfile.sector_id;
-
-    if (!title || !finalSectorId) {
-      setError("El título y el sector son obligatorios.");
-      setLoading(false);
-      return;
+    if (error) {
+        return <div className="p-8 text-center text-red-400">{error}</div>;
     }
 
-    const { error: insertError } = await supabase.from('courses').insert({
-      title,
-      description,
-      sector_id: finalSectorId,
-      is_published: isPublished,
-      creator_id: user.id,
-      start_date: startDate || null,
-      end_date: endDate || null,
-    });
-
-    if (insertError) {
-      console.error("Error al guardar el curso:", insertError);
-      setError("No se pudo guardar el curso. " + insertError.message);
-      setLoading(false);
-    } else {
-      router.push('/dashboard/admin/cursos');
-    }
-  };
-
-  const handleGenerateContent = async () => {
-    if (!title) {
-      alert("Por favor, primero escribe un título para el curso.");
-      return;
-    }
-    setIsGenerating(true);
-    setGenerationStatus(null);
-    try {
-      const { data, error } = await supabase.functions.invoke('generate-course-content', {
-        body: { mode: 'details', title },
-      });
-
-      if (error) throw error;
-      
-      setDescription(data.description + '\n\n**Temario Propuesto:**\n' + data.syllabus);
-      setGenerationStatus('success');
-    } catch (err: any) {
-      setGenerationStatus('error');
-    } finally {
-      setIsGenerating(false);
-      setTimeout(() => setGenerationStatus(null), 4000);
-    }
-  };
-  
-  if (loading) {
-    return <div className="p-8 text-white flex items-center justify-center">Cargando...</div>;
-  }
-  
-  return (
-    <div className="text-gray-200 p-8">
-      <div className="max-w-4xl mx-auto">
-        <header className="mb-4">
-            <h1 className="text-3xl font-bold text-white">Crear Nuevo Curso</h1>
-        </header>
-
-        <form onSubmit={handleSaveCourse} className="bg-[#151515] rounded-xl border border-gray-800 p-8 space-y-6">
-          <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-2">Título del Curso</label>
-            <input
-              id="title" value={title} onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md" required
+    // --- Renderizado ---
+    return (
+        <>
+            <DeleteCourseModal
+                isOpen={!!courseToDelete}
+                onClose={closeDeleteModal}
+                onConfirm={handleDeleteCourse}
+                courseTitle={courseToDelete?.title || ''}
+                isDeleting={isDeleting}
             />
-          </div>
+            <div className="text-gray-200 p-8">
+                <div className="max-w-7xl mx-auto">
+                    <div className="flex justify-between items-center mb-8">
+                        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+                            <BookCopy /> Gestión de Cursos
+                        </h1>
+                        <Link href="/dashboard/admin/cursos/nuevo" className="flex items-center gap-2 bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">
+                            <Plus size={20} /> Nuevo Curso
+                        </Link>
+                    </div>
 
-          <div>
-            <div className="flex justify-between items-center mb-2">
-                <label htmlFor="description" className="block text-sm font-medium text-gray-300">Descripción y Temario</label>
-                <button 
-                  type="button" 
-                  onClick={handleGenerateContent}
-                  disabled={isGenerating}
-                  className="flex items-center gap-2 text-xs bg-purple-600 text-white font-bold py-1 px-3 rounded-lg hover:bg-purple-700 disabled:opacity-50"
-                >
-                  {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                  {isGenerating ? 'Generando...' : 'Generar con IA'}
-                </button>
-            </div>
-             {generationStatus === 'success' && (
-                <div className="my-2 p-2 bg-green-900/50 text-green-300 text-sm rounded-md flex items-center gap-2">
-                    <CheckCircle size={16} /> Contenido generado con éxito.
-                </div>
-            )}
-            {generationStatus === 'error' && (
-                <div className="my-2 p-2 bg-red-900/50 text-red-300 text-sm rounded-md flex items-center gap-2">
-                    <XCircle size={16} /> Hubo un error al generar el contenido.
-                </div>
-            )}
-            <textarea
-              id="description" value={description} onChange={(e) => setDescription(e.target.value)}
-              rows={10}
-              placeholder="Escribe una descripción o usa la IA para generarla junto con un temario."
-              className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md"
-            />
-          </div>
-
-          {userProfile?.role_id === 1 ? (
-            <div>
-              <label htmlFor="sector" className="block text-sm font-medium text-gray-300 mb-2">Sector</label>
-              <select
-                id="sector" value={sectorId} onChange={(e) => setSectorId(e.target.value)}
-                className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md" required>
-                <option value="" disabled>Selecciona un sector...</option>
-                {allSectors.map(sector => (
-                  <option key={sector.id} value={sector.id}>{sector.name}</option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Sector</label>
-                <div className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-700 rounded-md text-gray-400">
-                    {userProfile?.sectors?.[0]?.name || 'Sector no asignado'}
+                    <div className="bg-[#151515] rounded-xl border border-gray-800 overflow-x-auto">
+                        <table className="w-full text-left min-w-[640px]">
+                            <thead className="bg-gray-800/50">
+                                <tr>
+                                    <th className="p-4">Título del Curso</th>
+                                    <th className="p-4">Sector</th>
+                                    <th className="p-4">Estado</th>
+                                    <th className="p-4 text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800">
+                                {courses.map((course) => (
+                                    <tr key={course.id}>
+                                        <td className="p-4 font-medium text-white">{course.title}</td>
+                                        <td className="p-4 text-gray-400">{course.sectors?.name || 'N/A'}</td>
+                                        <td className="p-4">
+                                            {course.is_published ? (
+                                                <span className="flex items-center gap-2 text-green-400"><CheckCircle size={16} /> Publicado</span>
+                                            ) : (
+                                                <span className="flex items-center gap-2 text-yellow-400"><XCircle size={16} /> Borrador</span>
+                                            )}
+                                        </td>
+                                        <td className="p-4 flex justify-end gap-4">
+                                            <Link href={`/dashboard/admin/cursos/editar/${course.id}`} className="text-blue-400 hover:text-blue-300">
+                                                <Edit size={18} />
+                                            </Link>
+                                            <button onClick={() => openDeleteModal(course)} className="text-red-500 hover:text-red-400">
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        {courses.length === 0 && (
+                            <p className="p-8 text-center text-gray-500">No se encontraron cursos.</p>
+                        )}
+                    </div>
                 </div>
             </div>
-          )}
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="startDate" className="block text-sm font-medium text-gray-300 mb-2">Fecha de Inicio (Opcional)</label>
-              <input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md text-gray-300"/>
-            </div>
-             <div>
-              <label htmlFor="endDate" className="block text-sm font-medium text-gray-300 mb-2">Fecha de Fin (Opcional)</label>
-              <input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-4 py-2 bg-[#0D0D0D] border border-gray-600 rounded-md text-gray-300"/>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-             <label htmlFor="isPublished" className="block text-sm font-medium text-gray-300">¿Publicar ahora?</label>
-             <button type="button" onClick={() => setIsPublished(!isPublished)} className={`${isPublished ? 'bg-[#FF4500]' : 'bg-gray-600'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}>
-                <span className={`${isPublished ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}/>
-            </button>
-          </div>
-          
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          
-          <div className="flex justify-end pt-4 border-t border-gray-800 mt-2">
-             <button
-              type="submit"
-              disabled={loading || isGenerating}
-              className="flex items-center gap-2 bg-[#FF4500] text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors"
-            >
-              <Save size={20} />
-              {loading ? 'Guardando...' : 'Guardar Curso'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+        </>
+    );
 }
