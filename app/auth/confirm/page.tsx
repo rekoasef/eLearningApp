@@ -11,7 +11,6 @@ import { Eye, EyeOff, Save, CheckCircle, AlertTriangle, Loader2 } from 'lucide-r
 const supabase = createClient();
 
 // --- Componente para el formulario de ACTUALIZAR CONTRASEÑA ---
-// (Este componente no necesita cambios, es el mismo de antes)
 const UpdatePasswordForm = () => {
     const router = useRouter();
     const [password, setPassword] = useState('');
@@ -80,25 +79,54 @@ const UpdatePasswordForm = () => {
     );
 };
 
-
 // --- Componente Principal de la Página de Confirmación ---
 const ConfirmPage: NextPage = () => {
-    // CORRECCIÓN: Añadimos un estado para saber si la sesión está lista.
-    const [sessionReady, setSessionReady] = useState(false);
+    const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+    const [errorMessage, setErrorMessage] = useState('Verificando invitación...');
 
     useEffect(() => {
-        // Escuchamos los cambios de autenticación de Supabase.
+        // CORRECCIÓN: Revisamos si la URL ya viene con un error.
+        const hash = window.location.hash;
+        const urlParams = new URLSearchParams(hash.substring(1)); // Quita el '#' inicial
+        const errorDescription = urlParams.get('error_description');
+
+        if (errorDescription) {
+            setErrorMessage("El enlace de invitación es inválido o ha expirado. Por favor, contacta a un administrador.");
+            setStatus('error');
+            return;
+        }
+
+        // Si no hay error en la URL, escuchamos el evento de Supabase
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-          // El evento 'SIGNED_IN' se dispara cuando Supabase procesa el token
-          // del enlace y establece la sesión temporal.
           if (event === 'SIGNED_IN' && session) {
-            setSessionReady(true);
+            setStatus('ready');
           }
         });
     
-        // Limpiamos la suscripción cuando el componente se desmonta.
         return () => subscription.unsubscribe();
     }, []);
+
+    const renderContent = () => {
+        switch (status) {
+            case 'ready':
+                return <UpdatePasswordForm />;
+            case 'error':
+                return (
+                    <div className="bg-[#1A1A1A] border border-red-500 rounded-lg p-8 shadow-lg text-center">
+                        <AlertTriangle className="mx-auto text-red-500 w-12 h-12 mb-4" />
+                        <h2 className="text-2xl font-bold mb-2">Error de Invitación</h2>
+                        <p className="text-gray-300">{errorMessage}</p>
+                    </div>
+                );
+            default: // 'loading'
+                return (
+                    <div className="text-center text-gray-400 flex flex-col items-center gap-4 p-8">
+                        <Loader2 className="animate-spin h-8 w-8" />
+                        <p>{errorMessage}</p>
+                    </div>
+                );
+        }
+    };
 
     return (
         <div className="min-h-screen bg-[#0D0D0D] text-white flex items-center justify-center p-4 font-sans">
@@ -107,16 +135,7 @@ const ConfirmPage: NextPage = () => {
                     <h1 className="text-4xl font-bold text-white">Crucianelli</h1>
                     <p className="text-gray-400 mt-2">Plataforma de Capacitación Interna</p>
                 </div>
-                
-                {/* Mostramos el formulario solo cuando la sesión está lista */}
-                {sessionReady ? (
-                    <UpdatePasswordForm /> 
-                ) : (
-                    <div className="text-center text-gray-400 flex flex-col items-center gap-4 p-8">
-                        <Loader2 className="animate-spin h-8 w-8" />
-                        Verificando invitación...
-                    </div>
-                )}
+                {renderContent()}
             </div>
         </div>
     );
