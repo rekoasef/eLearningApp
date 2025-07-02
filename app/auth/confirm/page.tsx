@@ -6,12 +6,14 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import type { NextPage } from 'next';
-import { Eye, EyeOff, Save, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Eye, EyeOff, Save, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+
+const supabase = createClient();
 
 // --- Componente para el formulario de ACTUALIZAR CONTRASEÑA ---
+// (Este componente no necesita cambios, es el mismo de antes)
 const UpdatePasswordForm = () => {
     const router = useRouter();
-    const supabase = createClient();
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -78,8 +80,26 @@ const UpdatePasswordForm = () => {
     );
 };
 
+
 // --- Componente Principal de la Página de Confirmación ---
 const ConfirmPage: NextPage = () => {
+    // CORRECCIÓN: Añadimos un estado para saber si la sesión está lista.
+    const [sessionReady, setSessionReady] = useState(false);
+
+    useEffect(() => {
+        // Escuchamos los cambios de autenticación de Supabase.
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+          // El evento 'SIGNED_IN' se dispara cuando Supabase procesa el token
+          // del enlace y establece la sesión temporal.
+          if (event === 'SIGNED_IN' && session) {
+            setSessionReady(true);
+          }
+        });
+    
+        // Limpiamos la suscripción cuando el componente se desmonta.
+        return () => subscription.unsubscribe();
+    }, []);
+
     return (
         <div className="min-h-screen bg-[#0D0D0D] text-white flex items-center justify-center p-4 font-sans">
             <div className="w-full max-w-md">
@@ -87,7 +107,16 @@ const ConfirmPage: NextPage = () => {
                     <h1 className="text-4xl font-bold text-white">Crucianelli</h1>
                     <p className="text-gray-400 mt-2">Plataforma de Capacitación Interna</p>
                 </div>
-                <UpdatePasswordForm />
+                
+                {/* Mostramos el formulario solo cuando la sesión está lista */}
+                {sessionReady ? (
+                    <UpdatePasswordForm /> 
+                ) : (
+                    <div className="text-center text-gray-400 flex flex-col items-center gap-4 p-8">
+                        <Loader2 className="animate-spin h-8 w-8" />
+                        Verificando invitación...
+                    </div>
+                )}
             </div>
         </div>
     );
