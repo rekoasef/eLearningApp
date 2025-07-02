@@ -85,22 +85,38 @@ const ConfirmPage: NextPage = () => {
     const [errorMessage, setErrorMessage] = useState('Verificando invitación...');
 
     useEffect(() => {
-        const hash = window.location.hash;
-        if (hash.includes('error_description')) {
-            setErrorMessage("El enlace es inválido o ha expirado. Contacta a un administrador.");
+        const hash = window.location.hash.substring(1); // Quita el '#' inicial
+        const params = new URLSearchParams(hash);
+
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const errorDescription = params.get('error_description');
+
+        if (errorDescription) {
             setStatus('error');
+            setErrorMessage(`Error: ${errorDescription.replace(/\+/g, ' ')}`);
             return;
         }
 
-        // CORRECCIÓN: Escuchamos el evento correcto 'PASSWORD_RECOVERY'.
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-          if (event === 'PASSWORD_RECOVERY' && session) {
-            // Este evento confirma que el usuario ha entrado en el flujo de recuperación.
-            setStatus('ready');
-          }
-        });
-    
-        return () => subscription.unsubscribe();
+        if (accessToken && refreshToken) {
+            // Manualmente establecemos la sesión usando los tokens de la URL.
+            supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+            }).then(({ error }) => {
+                if (error) {
+                    setStatus('error');
+                    setErrorMessage("No se pudo verificar tu sesión. El enlace puede ser inválido.");
+                } else {
+                    // ¡Éxito! La sesión está lista, podemos mostrar el formulario.
+                    setStatus('ready');
+                }
+            });
+        } else if (!hash) {
+            // Si no hay token en la URL, es un error.
+            setStatus('error');
+            setErrorMessage("URL inválida. No se encontraron los datos de autenticación.");
+        }
     }, []);
 
     const renderContent = () => {
