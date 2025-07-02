@@ -5,15 +5,36 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Upload } from 'lucide-react';
-import { Content } from '@/types'; // Importamos el tipo centralizado
+import { Content } from '@/types';
 
 type AddContentModalProps = {
   lessonId: string;
   courseId: string;
   isOpen: boolean;
   onClose: () => void;
-  onContentAdded: (newContent: Content) => void; // Usamos el tipo 'Content'
+  onContentAdded: (newContent: Content) => void;
 };
+
+// --- FUNCIÓN PARA LIMPIAR EL NOMBRE DEL ARCHIVO ---
+const sanitizeFilename = (filename: string): string => {
+    // Separa el nombre de la extensión
+    const dotIndex = filename.lastIndexOf('.');
+    const name = filename.substring(0, dotIndex);
+    const extension = filename.substring(dotIndex);
+
+    const sanitized = name
+      .toLowerCase()
+      // Quita tildes y caracteres especiales
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      // Reemplaza espacios y caracteres no alfanuméricos por un guión
+      .replace(/[^a-z0-9]/g, '-')
+      // Elimina guiones duplicados
+      .replace(/-+/g, '-');
+
+    return `${sanitized}${extension}`;
+};
+
 
 export default function AddContentModal({ lessonId, courseId, isOpen, onClose, onContentAdded }: AddContentModalProps) {
   const supabase = createClient();
@@ -67,7 +88,11 @@ export default function AddContentModal({ lessonId, courseId, isOpen, onClose, o
         setIsUploading(false);
         return;
       }
-      const filePath = `courses/${courseId}/${lessonId}/${Date.now()}-${pdfFile.name}`;
+
+      // CORRECCIÓN: Usamos la función para sanitizar el nombre del archivo
+      const cleanFileName = sanitizeFilename(pdfFile.name);
+      const filePath = `courses/${courseId}/${lessonId}/${Date.now()}-${cleanFileName}`;
+      
       const { error: uploadError } = await supabase.storage.from('course-materials').upload(filePath, pdfFile);
       
       if (uploadError) {
@@ -99,7 +124,7 @@ export default function AddContentModal({ lessonId, courseId, isOpen, onClose, o
       return;
     }
 
-    onContentAdded(newContent);
+    onContentAdded(newContent as Content);
     handleClose();
   };
 
