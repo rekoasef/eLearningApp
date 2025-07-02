@@ -26,9 +26,23 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
+    // CORRECCIÓN: Le decimos a Supabase a dónde redirigir al usuario.
+    // 1. Leemos la variable de entorno que acabamos de crear.
+    const siteUrl = Deno.env.get('SITE_URL');
+    if (!siteUrl) {
+        throw new Error("La variable de entorno SITE_URL no está configurada en Supabase Functions.");
+    }
+
+    // 2. Construimos la URL completa a nuestra página de confirmación.
+    const redirectTo = `${siteUrl}/auth/confirm`;
+
+    // 3. Pasamos la URL en la opción 'redirectTo' al invitar al usuario.
     const { data, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email,
-      { data: { full_name: full_name } }
+      { 
+        data: { full_name: full_name },
+        redirectTo: redirectTo // <-- ¡ESTA ES LA LÍNEA CLAVE!
+      }
     );
     
     if (inviteError) {
